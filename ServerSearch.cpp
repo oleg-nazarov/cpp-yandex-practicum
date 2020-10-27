@@ -71,18 +71,9 @@ class SearchServer {
     }
 
     template <typename Comparator>
-    vector<Document> FindTopDocuments(const string& raw_query, Comparator lambda_func) const {
+    vector<Document> FindTopDocuments(const string& raw_query, Comparator comparator) const {
         const Query query = ParseQuery(raw_query);
-        auto matched_documents = FindAllDocuments(query);
-
-        matched_documents.erase(
-            remove_if(
-                matched_documents.begin(),
-                matched_documents.end(),
-                [lambda_func](const Document& document) {
-                    return !lambda_func(document.id, document.status, document.rating);
-                }),
-            matched_documents.end());
+        auto matched_documents = FindAllDocuments(query, comparator);
 
         sort(
             matched_documents.begin(),
@@ -106,18 +97,14 @@ class SearchServer {
         vector<string> match_words;
 
         for (const string& word : query.plus_words) {
-            for (const auto& [id, _] : word_to_document_freqs_.at(word)) {
-                if (id == document_id) {
-                    match_words.push_back(word);
-                }
+            if (word_to_document_freqs_.at(word).count(document_id)) {
+                match_words.push_back(word);
             }
         }
 
         for (const string& word : query.minus_words) {
-            for (const auto& [id, _] : word_to_document_freqs_.at(word)) {
-                if (id == document_id) {
-                    match_words.clear();
-                }
+            if (word_to_document_freqs_.at(word).count(document_id)) {
+                match_words.clear();
             }
         }
 
@@ -213,7 +200,8 @@ class SearchServer {
         return log(document_ratings_status_.size() * 1.0 / word_to_document_freqs_.at(word).size());
     }
 
-    vector<Document> FindAllDocuments(const Query& query) const {
+    template <typename Comparator>
+    vector<Document> FindAllDocuments(const Query& query, Comparator comparator) const {
         map<int, double> document_to_relevance;
 
         for (const string& word : query.plus_words) {
@@ -240,6 +228,15 @@ class SearchServer {
 
         vector<Document> matched_documents;
         for (const auto [document_id, relevance] : document_to_relevance) {
+            bool should_add_document = comparator(
+                document_id,
+                document_ratings_status_.at(document_id).status,
+                document_ratings_status_.at(document_id).rating);
+
+            if (!should_add_document) {
+                continue;
+            }
+
             matched_documents.push_back({ document_id,
                                           relevance,
                                           document_ratings_status_.at(document_id).rating,
