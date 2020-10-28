@@ -55,7 +55,6 @@ class SearchServer {
     }
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
-        ++document_count_;
         const vector<string> words = SplitIntoWordsNoStop(document);
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
@@ -112,11 +111,10 @@ class SearchServer {
     }
 
     int GetDocumentCount() const {
-        return document_count_;
+        return document_ratings_status_.size();
     }
 
    private:
-    int document_count_ = 0;
     set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, Document> document_ratings_status_;
@@ -212,6 +210,17 @@ class SearchServer {
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
 
             for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
+                Document document_rating_status_by_id = document_ratings_status_.at(document_id);
+
+                bool should_add_document = comparator(
+                    document_id,
+                    document_rating_status_by_id.status,
+                    document_rating_status_by_id.rating);
+
+                if (!should_add_document) {
+                    continue;
+                }
+
                 document_to_relevance[document_id] += term_freq * inverse_document_freq;
             }
         }
@@ -228,19 +237,12 @@ class SearchServer {
 
         vector<Document> matched_documents;
         for (const auto [document_id, relevance] : document_to_relevance) {
-            bool should_add_document = comparator(
-                document_id,
-                document_ratings_status_.at(document_id).status,
-                document_ratings_status_.at(document_id).rating);
-
-            if (!should_add_document) {
-                continue;
-            }
+            Document document_rating_status_by_id = document_ratings_status_.at(document_id);
 
             matched_documents.push_back({ document_id,
                                           relevance,
-                                          document_ratings_status_.at(document_id).rating,
-                                          document_ratings_status_.at(document_id).status });
+                                          document_rating_status_by_id.rating,
+                                          document_rating_status_by_id.status });
         }
         return matched_documents;
     }
