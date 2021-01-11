@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <map>
 #include <set>
@@ -266,7 +267,225 @@ void PrintDocument(const Document& document) {
          << "rating = "s << document.rating << " }"s << endl;
 }
 
+// макросы ASSERT, ASSERT_EQUAL, ASSERT_EQUAL_HINT, ASSERT_HINT и RUN_TEST
+#define RUN_TEST(func) func(); cerr << #func << ": OK." << endl;
+
+template <typename A, typename B>
+void AssertEqualImpl(const A a, const B b, const string& a_str, const string& b_str,
+                     const string& file_name, const int line_number, const string& func_name,
+                     const string& hint) {
+    if (a != b) {
+        cerr << boolalpha;
+        cerr << file_name << "(" << line_number << "): " << func_name << ": ";
+        cerr << "ASSERT_EQUAL(" << a_str << ", " << b_str << ") failed: ";
+        cerr << a << " != " << b << ".";
+
+        if (!hint.empty()) {
+            cerr << " Hint: " << hint;
+        }
+
+        abort();
+    }
+}
+#define ASSERT_EQUAL(a, b) AssertEqualImpl(a, b, #a, #b, __FILE__, __LINE__, __FUNCTION__, "")
+#define ASSERT_EQUAL_HINT(a, b, hint) AssertEqualImpl(a, b, #a, #b, __FILE__, __LINE__, __FUNCTION__, hint)
+
+void AssertImpl(const bool value, const string& value_str, const string& file_name,
+                const int line_number, const string& func_name, const string& hint) {
+    if (!value) {
+        cerr << file_name << "(" << line_number << "): " << func_name << ": ";
+        cerr << "ASSERT(" << value_str << ") failed."s;
+
+        if (!hint.empty()) {
+            cerr << " Hint: " << hint;
+        }
+
+        abort();
+    }
+}
+#define ASSERT(value) AssertImpl(value, #value, __FILE__, __LINE__, __FUNCTION__, "")
+#define ASSERT_HINT(value, hint) AssertImpl(value, #value, __FILE__, __LINE__, __FUNCTION__, hint)
+
+ostream& operator<<(ostream& os, DocumentStatus doc) {
+    const char* status = 0;
+#define PROCESS_DOC(p) case (p): status = #p; break;
+    switch (doc) {
+        PROCESS_DOC(DocumentStatus::ACTUAL);
+        PROCESS_DOC(DocumentStatus::IRRELEVANT);
+        PROCESS_DOC(DocumentStatus::BANNED);
+        PROCESS_DOC(DocumentStatus::REMOVED);
+    }
+#undef PROCESS_DOC
+
+    os << status;
+
+    return os;
+}
+
+// -------- Начало модульных тестов поисковой системы ----------
+void TestExcludeStopWordsFromAddedDocumentContent() {
+    const int doc_id = 42;
+    const string content = "cat in the city";
+    const vector<int> ratings = {1, 2, 3};
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("in"s);
+        ASSERT_EQUAL(found_docs.size(), 1u);
+        const Document& doc0 = found_docs[0];
+        ASSERT_EQUAL(doc0.id, doc_id);
+    }
+
+    {
+        SearchServer server;
+        server.SetStopWords("in the"s);
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        ASSERT_HINT(server.FindTopDocuments("in"s).empty(), "Stop words must be excluded from documents"s);
+    }
+}
+
+void TestExcludeDocumentsWithMinusWordsFromSearchResult() {
+    const int doc_id = 42;
+    const string content = "cat in the city";
+    const vector<int> ratings = {1, 2, 3};
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("cat -city");
+        ASSERT_EQUAL(found_docs.size(), 0);
+    }
+}
+
+void TestMatchDocument() {
+    const int doc_id = 42;
+    const string content = "cat in the city";
+    const vector<int> ratings = {1, 2, 3};
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto matched_words = server.MatchDocument("city", doc_id);
+        ASSERT_EQUAL(get<0>(matched_words)[0], "city");
+        ASSERT_EQUAL(get<1>(matched_words), DocumentStatus::ACTUAL);
+    }
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto matched_words = server.MatchDocument("-cat city", doc_id);
+        ASSERT(get<0>(matched_words).empty());
+    }
+}
+
+void TestDocumentRelevance() {
+    const int doc_id_city = 42;
+    const string content_city = "cat in the city";
+    const vector<int> ratings = {1, 2, 3};
+    const int doc_id_village = 43;
+    const string content_village = "cat in the village";
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id_village, content_village, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("cat in the city");
+        const Document& doc_0 = found_docs[0];
+        ASSERT_EQUAL(doc_0.id, doc_id_village);
+
+        server.AddDocument(doc_id_city, content_city, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs_new = server.FindTopDocuments("cat in the city");
+        const Document& doc_0_new = found_docs_new[0];
+        ASSERT_EQUAL(doc_0_new.id, doc_id_city);
+        const Document& doc_1_new = found_docs_new[1];
+        ASSERT_EQUAL(doc_1_new.id, doc_id_village);
+    }
+}
+
+void TestDocumentRating() {
+    const int doc_id = 42;
+    const string content = "cat in the city";
+    const vector<int> ratings = {3, 30, 300};
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, {});
+        const auto found_docs = server.FindTopDocuments("cat");
+        ASSERT_EQUAL(found_docs[0].rating, 0);
+    }
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        const auto found_docs = server.FindTopDocuments("cat");
+        ASSERT_EQUAL(found_docs[0].rating, 111);
+    }
+}
+
+void TestSearchResultWithComparator() {
+    const int doc_id = 42;
+    const string content = "cat in the city";
+    const vector<int> ratings = {1, 2, 3};
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::IRRELEVANT, {});
+        const auto found_docs = server.FindTopDocuments("cat");
+        ASSERT_EQUAL(found_docs.size(), 0);
+
+        const auto found_docs_irrelevant = server.FindTopDocuments(
+            "cat",
+            [](int document_id, DocumentStatus status, int rating) {
+                return status == DocumentStatus::IRRELEVANT;
+            });
+        ASSERT_EQUAL(found_docs_irrelevant[0].id, doc_id);
+    }
+}
+
+void TestSearchResultToDocumentStatus() {
+    const string content = "cat in the city";
+    const int doc_id_actual = 42;
+    const int doc_id_banned = 43;
+    const int doc_id_irrelevant = 44;
+    const int doc_id_removed = 45;
+
+    {
+        SearchServer server;
+        server.AddDocument(doc_id_actual, content, DocumentStatus::ACTUAL, {});
+        server.AddDocument(doc_id_banned, content, DocumentStatus::BANNED, {});
+        server.AddDocument(doc_id_irrelevant, content, DocumentStatus::IRRELEVANT, {});
+        server.AddDocument(doc_id_removed, content, DocumentStatus::REMOVED, {});
+
+        const auto found_docs_actual = server.FindTopDocuments("cat", DocumentStatus::ACTUAL);
+        ASSERT_EQUAL(found_docs_actual[0].id, doc_id_actual);
+
+        const auto found_docs_banned = server.FindTopDocuments("cat", DocumentStatus::BANNED);
+        ASSERT_EQUAL(found_docs_banned[0].id, doc_id_banned);
+
+        const auto found_docs_irrelevant = server.FindTopDocuments("cat", DocumentStatus::IRRELEVANT);
+        ASSERT_EQUAL(found_docs_irrelevant[0].id, doc_id_irrelevant);
+
+        const auto found_docs_removed = server.FindTopDocuments("cat", DocumentStatus::REMOVED);
+        ASSERT_EQUAL(found_docs_removed[0].id, doc_id_removed);
+    }
+}
+
+// Функция TestSearchServer является точкой входа для запуска тестов
+void TestSearchServer() {
+    RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
+    RUN_TEST(TestExcludeDocumentsWithMinusWordsFromSearchResult);
+    RUN_TEST(TestMatchDocument);
+    RUN_TEST(TestDocumentRelevance);
+    RUN_TEST(TestDocumentRating);
+    RUN_TEST(TestSearchResultWithComparator);
+    RUN_TEST(TestSearchResultToDocumentStatus);
+}
+
+// --------- Окончание модульных тестов поисковой системы -----------
+
 int main() {
+    TestSearchServer();
+
     SearchServer search_server;
     search_server.SetStopWords("и в на"s);
 
@@ -300,4 +519,3 @@ int main() {
 
     return 0;
 }
-
