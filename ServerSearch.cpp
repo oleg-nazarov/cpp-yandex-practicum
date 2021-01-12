@@ -53,7 +53,7 @@ class SearchServer {
         for (const string& word : SplitIntoWords(text)) {
             stop_words_.insert(word);
         }
-    }
+    } 
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
         const vector<string> words = SplitIntoWordsNoStop(document);
