@@ -1,6 +1,6 @@
 #include <algorithm>
 #include <cmath>
-#include <cstdlib> 
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -54,7 +54,7 @@ class SearchServer {
         for (const string& word : SplitIntoWords(text)) {
             stop_words_.insert(word);
         }
-    } 
+    }
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
         const vector<string> words = SplitIntoWordsNoStop(document);
@@ -509,6 +509,9 @@ void TestRelevanceCalculating() {
         server.AddDocument(doc_id_2, content_2, DocumentStatus::ACTUAL, ratings);
         server.AddDocument(doc_id_3, content_3, DocumentStatus::ACTUAL, ratings);
 
+        // relevance = tf * idf;
+        // founded two docs with "cat" below have the same idf, so we can use it to check
+        // and compare tf (found_docs_cat[0] has tf "1" and found_docs_cat[1] has "1/3"):
         const auto found_docs_cat = server.FindTopDocuments("cat"s);
         const double is_zero_1 = abs(found_docs_cat[0].relevance / found_docs_cat[1].relevance - 3.0) < EPS;
         ASSERT(is_zero_1);
@@ -532,12 +535,14 @@ void TestRelevanceCalculating() {
         server.AddDocument(doc_id_1, content_1, DocumentStatus::ACTUAL, ratings);
         server.AddDocument(doc_id_2, content_2, DocumentStatus::ACTUAL, ratings);
         const auto found_docs_cat = server.FindTopDocuments("cat"s);
-        const double is_zero_1 = abs(found_docs_cat[0].relevance - 0.693147) < EPS;
+        const double cat_relevance = 1 * log(2.0 / 1);
+        const double is_zero_1 = abs(found_docs_cat[0].relevance - cat_relevance) < EPS;
         ASSERT(is_zero_1);
 
         server.AddDocument(doc_id_3, content_3, DocumentStatus::ACTUAL, ratings);
         const auto found_docs_other = server.FindTopDocuments("cat"s);
-        const double is_zero_2 = abs(found_docs_other[0].relevance - 1.098612) < EPS;
+        const double other_relevance = 1 * log(3.0 / 1);
+        const double is_zero_2 = abs(found_docs_other[0].relevance - other_relevance) < EPS;
         ASSERT(is_zero_2);
     }
 }
