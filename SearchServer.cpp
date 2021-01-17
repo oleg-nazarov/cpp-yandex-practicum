@@ -5,6 +5,7 @@
 #include <iostream>
 #include <map>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,14 +18,16 @@ const double EPS = 1e-6;
 vector<string> SplitIntoWords(const string& text) {
     vector<string> words;
     string word;
+
     for (const char c : text) {
-        if (c == ' ') {
+        if (c == ' ' && !word.empty()) {
             words.push_back(word);
             word = "";
         } else {
             word += c;
         }
     }
+
     words.push_back(word);
 
     return words;
@@ -43,23 +46,47 @@ struct Document {
     int rating;
     DocumentStatus status;
 
-    Document() : id(-1), relevance(-1.), rating(-1), status(DocumentStatus::ACTUAL){};
+    Document() : id(0), relevance(0.0), rating(0), status(DocumentStatus::ACTUAL){};
+    Document(int id, double relevance, int rating) : id(id), relevance(relevance), rating(rating), status(DocumentStatus::ACTUAL){};
     Document(int id, double relevance, int rating, DocumentStatus status) : id(id), relevance(relevance), rating(rating), status(status){};
     Document(int rating, DocumentStatus status) : rating(rating), status(status){};
 };
 
 class SearchServer {
    public:
-    void SetStopWords(const string& text) {
-        for (const string& word : SplitIntoWords(text)) {
+    SearchServer() = default;
+
+    SearchServer(const string& text) : SearchServer(SplitIntoWords(text)) {}
+
+    template <typename Container>
+    SearchServer(const Container& stop_words) {
+        for (const string& word : stop_words) {
+            if (word.empty()) {
+                continue;
+            }
+
+            if (HasSpecialCharacters(word)) {
+                throw invalid_argument("Step words mustn't include special characters"s);
+            }
+
             stop_words_.insert(word);
         }
     }
 
     void AddDocument(int document_id, const string& document, DocumentStatus status, const vector<int>& ratings) {
+        if (document_id < 0) {
+            throw invalid_argument("Document id mustn't be negative"s);
+        } else if (document_ratings_status_.count(document_id)) {
+            throw invalid_argument("Document with such id has already added"s);
+        }
+
         const vector<string> words = SplitIntoWordsNoStop(document);
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
+            if (HasSpecialCharacters(word)) {
+                throw invalid_argument("Document mustn't include special characters"s);
+            }
+
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
         document_ratings_status_[document_id] = Document(ComputeAverageRating(ratings), status);
@@ -116,10 +143,25 @@ class SearchServer {
         return document_ratings_status_.size();
     }
 
+    int GetDocumentId(int order) const {
+        if (order < 0 || order > static_cast<int>(document_id_by_order_.size()) - 1) {
+            throw out_of_range("Index of document is out of range"s);
+        }
+
+        return document_id_by_order_[order];
+    }
+
    private:
     set<string> stop_words_;
     map<string, map<int, double>> word_to_document_freqs_;
     map<int, Document> document_ratings_status_;
+    vector<int> document_id_by_order_;
+
+    static bool HasSpecialCharacters(const string& word) {
+        return any_of(word.begin(), word.end(), [](const char c) {
+            return c >= '\0' && c < ' ';
+        });
+    }
 
     bool IsStopWord(const string& word) const {
         return stop_words_.count(word) > 0;
@@ -162,6 +204,10 @@ class SearchServer {
 
         // Word shouldn't be empty
         if (text[0] == '-') {
+            if (text.size() == 1u || text[1] == '-' || text[1] == ' ') {
+                throw invalid_argument("There must by another word after \"minus\" sign"s);
+            }
+
             is_minus = true;
             text = text.substr(1);
         }
@@ -182,6 +228,10 @@ class SearchServer {
         Query query;
 
         for (const string& word : SplitIntoWords(text)) {
+            if (HasSpecialCharacters(word)) {
+                throw invalid_argument("Text mustn't include special characters"s);
+            }
+
             const QueryWord query_word = ParseQueryWord(word);
 
             if (!query_word.is_stop) {
@@ -339,8 +389,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
     }
 
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server("in the"s);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         ASSERT_HINT(server.FindTopDocuments("in"s).empty(), "Stop words must be excluded from documents"s);
     }
@@ -361,11 +410,60 @@ void TestDocumentsCount() {
         server.AddDocument(doc_id_2, content, DocumentStatus::BANNED, ratings);
         const size_t doc_count_2 = server.GetDocumentCount();
         ASSERT_EQUAL(doc_count_2, 2u);
+    }
+}
 
-        // adding document with the same id does not increase documents count
-        server.AddDocument(doc_id_1, "one more cat"s, DocumentStatus::ACTUAL, ratings);
-        const size_t doc_count_3 = server.GetDocumentCount();
-        ASSERT_EQUAL(doc_count_3, 2u);
+void TestAddingDocument() {
+    const int doc_id = 42;
+    const int doc_id_negative = -42;
+    const string content = "cat in the city";
+    const vector<int> ratings = {1, 2, 3};
+
+    // document with existing id has not been added
+    {
+        bool got_exception = false;
+
+        SearchServer server;
+        server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+
+        try {
+            server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
+        } catch (const invalid_argument& error) {
+            // TODO: kludge
+            got_exception = true;
+        }
+
+        if (!got_exception) {
+            ASSERT_HINT(false, "should throw an expetion on adding document with existing id"s);
+        } else {
+            ASSERT(true);
+        }
+    }
+
+    // document with negative id has not been added
+    {
+        SearchServer server;
+        const size_t doc_count_1 = server.GetDocumentCount();
+
+        try {
+            server.AddDocument(doc_id_negative, content, DocumentStatus::ACTUAL, ratings);
+        } catch (const invalid_argument& error) {
+        }
+        const size_t doc_count_2 = server.GetDocumentCount();
+        ASSERT_EQUAL(doc_count_1, doc_count_2);
+    }
+
+    // document with special character has not been added
+    {
+        SearchServer server;
+        const size_t doc_count_1 = server.GetDocumentCount();
+
+        try {
+            server.AddDocument(doc_id, content + "\x12"s, DocumentStatus::ACTUAL, ratings);
+        } catch (const invalid_argument& error) {
+        }
+        const size_t doc_count_2 = server.GetDocumentCount();
+        ASSERT_EQUAL(doc_count_1, doc_count_2);
     }
 }
 
@@ -551,6 +649,7 @@ void TestRelevanceCalculating() {
 void TestSearchServer() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
     RUN_TEST(TestDocumentsCount);
+    RUN_TEST(TestAddingDocument);
     RUN_TEST(TestExcludeDocumentsWithMinusWordsFromSearchResult);
     RUN_TEST(TestMatchDocument);
     RUN_TEST(TestDocumentRelevance);
@@ -565,8 +664,7 @@ void TestSearchServer() {
 int main() {
     TestSearchServer();
 
-    SearchServer search_server;
-    search_server.SetStopWords("и в на"s);
+    SearchServer search_server("и в на"s);
 
     search_server.AddDocument(0, "белый кот и модный ошейник"s, DocumentStatus::ACTUAL, { 8, -3 });
     search_server.AddDocument(1, "пушистый кот пушистый хвост"s, DocumentStatus::ACTUAL, { 7, 2, 7 });
