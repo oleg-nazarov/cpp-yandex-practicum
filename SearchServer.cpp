@@ -32,7 +32,7 @@ vector<string> SplitIntoWords(const string& text) {
 
     return words;
 }
- 
+
 enum class DocumentStatus {
     ACTUAL,
     IRRELEVANT,
@@ -78,15 +78,13 @@ class SearchServer {
             throw invalid_argument("Document id mustn't be negative"s);
         } else if (document_ratings_status_.count(document_id)) {
             throw invalid_argument("Document with such id has already added"s);
+        } else if (HasSpecialCharacters(document)) {
+            throw invalid_argument("Document mustn't include special characters"s);
         }
 
         const vector<string> words = SplitIntoWordsNoStop(document);
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
-            if (HasSpecialCharacters(word)) {
-                throw invalid_argument("Document mustn't include special characters"s);
-            }
-
             word_to_document_freqs_[word][document_id] += inv_word_count;
         }
         document_ratings_status_[document_id] = Document(ComputeAverageRating(ratings), status);
@@ -200,6 +198,10 @@ class SearchServer {
     };
 
     QueryWord ParseQueryWord(string text) const {
+        if (HasSpecialCharacters(text)) {
+            throw invalid_argument("Text mustn't include special characters"s);
+        }
+
         bool is_minus = false;
 
         // Word shouldn't be empty
@@ -228,10 +230,6 @@ class SearchServer {
         Query query;
 
         for (const string& word : SplitIntoWords(text)) {
-            if (HasSpecialCharacters(word)) {
-                throw invalid_argument("Text mustn't include special characters"s);
-            }
-
             const QueryWord query_word = ParseQueryWord(word);
 
             if (!query_word.is_stop) {
@@ -262,12 +260,12 @@ class SearchServer {
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
 
             for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                Document document_rating_status_by_id = document_ratings_status_.at(document_id);
+                Document document_data = document_ratings_status_.at(document_id);
 
                 bool should_add_document = comparator(
                     document_id,
-                    document_rating_status_by_id.status,
-                    document_rating_status_by_id.rating);
+                    document_data.status,
+                    document_data.rating);
 
                 if (!should_add_document) {
                     continue;
@@ -289,12 +287,12 @@ class SearchServer {
 
         vector<Document> matched_documents;
         for (const auto [document_id, relevance] : document_to_relevance) {
-            Document document_rating_status_by_id = document_ratings_status_.at(document_id);
+            Document document_data = document_ratings_status_.at(document_id);
 
             matched_documents.push_back({ document_id,
                                           relevance,
-                                          document_rating_status_by_id.rating,
-                                          document_rating_status_by_id.status });
+                                          document_data.rating,
+                                          document_data.status });
         }
         return matched_documents;
     }
