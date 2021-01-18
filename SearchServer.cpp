@@ -86,7 +86,7 @@ class SearchServer {
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
-        }
+        } 
         document_ratings_status_[document_id] = Document(ComputeAverageRating(ratings), status);
     }
 
