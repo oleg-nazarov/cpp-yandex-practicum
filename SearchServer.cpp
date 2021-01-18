@@ -32,7 +32,7 @@ vector<string> SplitIntoWords(const string& text) {
 
     return words;
 }
-
+ 
 enum class DocumentStatus {
     ACTUAL,
     IRRELEVANT,
