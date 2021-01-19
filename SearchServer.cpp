@@ -86,7 +86,7 @@ class SearchServer {
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
-        } 
+        }
         document_ratings_status_[document_id] = Document(ComputeAverageRating(ratings), status);
     }
 
@@ -198,10 +198,6 @@ class SearchServer {
     };
 
     QueryWord ParseQueryWord(string text) const {
-        if (HasSpecialCharacters(text)) {
-            throw invalid_argument("Text mustn't include special characters"s);
-        }
-
         bool is_minus = false;
 
         // Word shouldn't be empty
@@ -212,6 +208,10 @@ class SearchServer {
 
             is_minus = true;
             text = text.substr(1);
+        }
+
+        if (HasSpecialCharacters(text)) {
+            throw invalid_argument("Text mustn't include special characters"s);
         }
 
         return {
