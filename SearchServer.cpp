@@ -78,11 +78,9 @@ class SearchServer {
             throw invalid_argument("Document id mustn't be negative"s);
         } else if (document_ratings_status_.count(document_id)) {
             throw invalid_argument("Document with such id has already added"s);
-        } else if (HasSpecialCharacters(document)) {
-            throw invalid_argument("Document mustn't include special characters"s);
         }
 
-        const vector<string> words = SplitIntoWordsNoStop(document);
+        const vector<string> words = SplitIntoWordsNoStopAndValid(document);
         const double inv_word_count = 1.0 / words.size();
         for (const string& word : words) {
             word_to_document_freqs_[word][document_id] += inv_word_count;
@@ -165,10 +163,14 @@ class SearchServer {
         return stop_words_.count(word) > 0;
     }
 
-    vector<string> SplitIntoWordsNoStop(const string& text) const {
+    vector<string> SplitIntoWordsNoStopAndValid(const string& text) const {
         vector<string> words;
 
         for (const string& word : SplitIntoWords(text)) {
+            if (HasSpecialCharacters(word)) {
+                throw invalid_argument("Document mustn't include special characters: \""s + word + "\""s);
+            }
+
             if (!IsStopWord(word)) {
                 words.push_back(word);
             }
