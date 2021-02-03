@@ -1,8 +1,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <deque>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <set>
 #include <stdexcept>
@@ -51,6 +53,83 @@ struct Document {
     Document(int id, double relevance, int rating, DocumentStatus status) : id(id), relevance(relevance), rating(rating), status(status){};
     Document(int rating, DocumentStatus status) : rating(rating), status(status){};
 };
+
+ostream& operator<<(ostream& os, const Document& document) {
+    os << "{ "s
+       << "document_id = "s << document.id << ", "s
+       << "relevance = "s << document.relevance << ", "s
+       << "rating = "s << document.rating << " }"s;
+
+    return os;
+}
+
+template <typename Iterator>
+class IteratorRange {
+   public:
+    IteratorRange() = default;
+
+    IteratorRange(Iterator range_begin, Iterator range_end) : range_begin_(range_begin), range_end_(range_end) {}
+
+    Iterator begin() const {
+        return range_begin_;
+    }
+
+    Iterator end() const {
+        return range_end_;
+    }
+
+   private:
+    Iterator range_begin_;
+    Iterator range_end_;
+};
+
+template <typename Iterator>
+class Paginator {
+   public:
+    Paginator(Iterator range_begin, Iterator range_end, size_t page_size) {
+        // all pages that are fullfilled according to "page_size"
+        while (next(range_begin, page_size) <= range_end) {
+            auto page_end = next(range_begin, page_size);
+
+            page_iterators_.push_back(IteratorRange<Iterator>(range_begin, page_end));
+            range_begin = page_end;
+        }
+
+        // last page that is not fullfilled according to "page_size"
+        if (range_begin < range_end) {
+            page_iterators_.push_back({range_begin, range_end});
+        }
+    }
+
+    auto begin() const {
+        return page_iterators_.begin();
+    }
+
+    auto end() const {
+        return page_iterators_.end();
+    }
+
+   private:
+    vector<IteratorRange<Iterator>> page_iterators_;
+};
+
+template <typename Iterator>
+ostream& operator<<(ostream& os, const IteratorRange<Iterator>& it) {
+    for (Iterator iterator = it.begin(); iterator != it.end(); ++iterator) {
+        os << *iterator;
+    }
+
+    return os;
+}
+
+template <typename Iterator>
+ostream& operator<<(ostream& os, const vector<IteratorRange<Iterator>>& page_iterators) {
+    for (IteratorRange<Iterator> it : page_iterators) {
+        os << it;
+    }
+
+    return os;
+}
 
 class SearchServer {
    public:
@@ -660,39 +739,70 @@ void TestSearchServer() {
 }
 
 // --------- Окончание модульных тестов поисковой системы -----------
+template <typename Container>
+auto Paginate(const Container& c, size_t page_size) {
+    return Paginator(begin(c), end(c), page_size);
+}
+
+class RequestQueue {
+   public:
+    explicit RequestQueue(const SearchServer& search_server) : search_server_(search_server) {}
+
+    template <typename Comparator>
+    vector<Document> AddFindRequest(const string& raw_query, Comparator comparator) {
+        vector<Document> top_documents = search_server_.FindTopDocuments(raw_query, comparator);
+        AddRequest(raw_query, top_documents.size());
+
+        return top_documents;
+    }
+
+    vector<Document> AddFindRequest(const string& raw_query, DocumentStatus status) {
+        vector<Document> top_documents = search_server_.FindTopDocuments(raw_query, status);
+        AddRequest(raw_query, top_documents.size());
+
+        return top_documents;
+    }
+
+    vector<Document> AddFindRequest(const string& raw_query) {
+        vector<Document> top_documents = search_server_.FindTopDocuments(raw_query);
+        AddRequest(raw_query, top_documents.size());
+
+        return top_documents;
+    }
+
+    int GetNoResultRequests() const {
+        return empty_count_;
+    }
+
+   private:
+    struct QueryResult {
+        string query;
+        size_t result_count;
+    };
+    int empty_count_ = 0;
+    deque<QueryResult> requests_;
+    const static int sec_in_day_ = 1440;
+    const SearchServer& search_server_;
+
+    void AddRequest(const string& raw_query, const size_t result_count) {
+        if (requests_.size() == sec_in_day_) {
+            if (requests_.front().result_count == 0u) {
+                --empty_count_;
+            }
+
+            requests_.pop_front();
+        }
+
+        requests_.push_back({raw_query, result_count});
+
+        if (result_count == 0u) {
+            ++empty_count_;
+        }
+    }
+};
 
 int main() {
     TestSearchServer();
-
-    SearchServer search_server("и в на"s);
-
-    search_server.AddDocument(0, "белый кот и модный ошейник"s, DocumentStatus::ACTUAL, { 8, -3 });
-    search_server.AddDocument(1, "пушистый кот пушистый хвост"s, DocumentStatus::ACTUAL, { 7, 2, 7 });
-    search_server.AddDocument(2, "ухоженный пёс выразительные глаза"s, DocumentStatus::ACTUAL, { 5, -12, 2, 1 });
-    search_server.AddDocument(3, "ухоженный скворец евгений"s, DocumentStatus::BANNED, { 9 });
-
-    cout << "ACTUAL by default:"s << endl;
-
-    for (const Document& document : search_server.FindTopDocuments("пушистый ухоженный кот"s)) {
-        PrintDocument(document);
-    }
-
-    cout << "ACTUAL:"s << endl;
-    for (const Document &document : search_server.FindTopDocuments(
-             "пушистый ухоженный кот"s,
-             [](int document_id, DocumentStatus status, int rating) {
-                 return status == DocumentStatus::ACTUAL;
-             })) {
-        PrintDocument(document);
-    }
-
-    cout << "Even ids:"s << endl;
-    for (const Document &document : search_server.FindTopDocuments(
-             "пушистый ухоженный кот"s, [](int document_id, DocumentStatus status, int rating) {
-                 return document_id % 2 == 0;
-             })) {
-        PrintDocument(document);
-    }
-
+    
     return 0;
 }
