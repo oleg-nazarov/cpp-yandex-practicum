@@ -8,14 +8,6 @@
 
 RequestQueue::RequestQueue(const SearchServer& search_server) : search_server_(search_server) {}
 
-template <typename Comparator>
-std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, Comparator comparator) {
-    std::vector<Document> top_documents = search_server_.FindTopDocuments(raw_query, comparator);
-    AddRequest(raw_query, top_documents.size());
-
-    return top_documents;
-}
-
 std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, DocumentStatus status) {
     std::vector<Document> top_documents = search_server_.FindTopDocuments(raw_query, status);
     AddRequest(raw_query, top_documents.size());

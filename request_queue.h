@@ -29,4 +29,10 @@ class RequestQueue {
     void AddRequest(const std::string& raw_query, const size_t result_count);
 };
 
-#include "request_queue.cpp"
+template <typename Comparator>
+std::vector<Document> RequestQueue::AddFindRequest(const std::string& raw_query, Comparator comparator) {
+    std::vector<Document> top_documents = search_server_.FindTopDocuments(raw_query, comparator);
+    AddRequest(raw_query, top_documents.size());
+
+    return top_documents;
+}
