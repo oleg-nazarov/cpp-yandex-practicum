@@ -4,12 +4,16 @@
 #include <set>
 #include <string>
 #include <tuple>
+#include <vector>
 
 #include "document.h"
+#include "log_duration.h"
 #include "string_processing.h"
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double EPS = 1e-6;
+const std::string OPERATION_TIME_STRING = "Operation time";
+const std::map<std::string, double> EMPTY_MAP = {};
 
 class SearchServer {
    public:
@@ -19,6 +23,7 @@ class SearchServer {
     SearchServer(const std::string& text);
 
     void AddDocument(int document_id, const std::string& document, DocumentStatus status, const std::vector<int>& ratings);
+    void RemoveDocument(int document_id);
 
     template <typename Comparator>
     std::vector<Document> FindTopDocuments(const std::string& raw_query, Comparator comparator) const;
@@ -28,13 +33,18 @@ class SearchServer {
     std::tuple<std::vector<std::string>, DocumentStatus> MatchDocument(const std::string& raw_query, int document_id) const;
 
     int GetDocumentCount() const;
-    int GetDocumentId(int order) const;
+
+    const std::map<std::string, double>& GetWordFrequencies(int document_id) const;
+
+    std::set<int>::const_iterator begin() const;
+    std::set<int>::const_iterator end() const;
 
    private:
     std::set<std::string> stop_words_;
     std::map<std::string, std::map<int, double>> word_to_document_freqs_;
+    std::map<int, std::map<std::string, double>> document_to_word_freqs_;
     std::map<int, Document> document_ratings_status_;
-    std::vector<int> document_id_by_order_;
+    std::set<int> document_ids_;
 
     static bool HasSpecialCharacters(const std::string& word);
 
@@ -85,6 +95,8 @@ SearchServer::SearchServer(const Container& stop_words) {
 
 template <typename Comparator>
 std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, Comparator comparator) const {
+    LOG_DURATION_STREAM(OPERATION_TIME_STRING, std::cerr);
+
     const Query query = ParseQuery(raw_query);
     auto matched_documents = FindAllDocuments(query, comparator);
 

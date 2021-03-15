@@ -6,8 +6,10 @@
 
 #include "document.h"
 #include "paginator.h"
+#include "remove_duplicates.h"
 #include "request_queue.h"
 #include "search_server.h"
+#include "test_example_functions.h"
 
 using namespace std::string_literals;
 
@@ -178,7 +180,7 @@ void TestExcludeDocumentsWithMinusWordsFromSearchResult() {
     }
 }
 
-void TestMatchDocument() {
+void TestMatchingDocument() {
     const int doc_id = 42;
     const std::string content = "cat in the city";
     const std::vector<int> ratings = {1, 2, 3};
@@ -349,7 +351,7 @@ void TestSearchServer() {
     RUN_TEST(TestDocumentsCount);
     RUN_TEST(TestAddingDocument);
     RUN_TEST(TestExcludeDocumentsWithMinusWordsFromSearchResult);
-    RUN_TEST(TestMatchDocument);
+    RUN_TEST(TestMatchingDocument);
     RUN_TEST(TestDocumentRelevance);
     RUN_TEST(TestDocumentRating);
     RUN_TEST(TestSearchResultWithComparator);
