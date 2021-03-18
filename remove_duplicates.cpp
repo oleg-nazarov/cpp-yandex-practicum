@@ -28,11 +28,12 @@ void RemoveDuplicates(SearchServer& search_server) {
 
         if (document_words_to_id.count(document_words)) {
             int checked_id = document_words_to_id[document_words];
+            bool should_update_id = checked_id > document_id;
 
-            ids_to_remove.insert(checked_id > document_id ? checked_id : document_id);
+            ids_to_remove.insert(should_update_id ? checked_id : document_id);
 
             // "if" is slower than "ternary operator"
-            document_words_to_id[document_words] = checked_id > document_id ? document_id : checked_id;
+            document_words_to_id[document_words] = should_update_id ? document_id : checked_id;
         } else {
             document_words_to_id[document_words] = document_id;
         }
@@ -40,7 +41,7 @@ void RemoveDuplicates(SearchServer& search_server) {
 
     // removing
     for (int id : ids_to_remove) {
-        std::cout << DUPLICATE_ID_INFO_TEXT << ' ' << id << std::endl;
+        std::cout << "Found duplicate document id " << id << std::endl;
         search_server.RemoveDocument(id);
     }
 }

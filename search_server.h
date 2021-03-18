@@ -13,7 +13,6 @@
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
 const double EPS = 1e-6;
 const std::string OPERATION_TIME_STRING = "Operation time";
-const std::map<std::string, double> EMPTY_MAP = {};
 
 class SearchServer {
    public:
@@ -95,8 +94,6 @@ SearchServer::SearchServer(const Container& stop_words) {
 
 template <typename Comparator>
 std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_query, Comparator comparator) const {
-    LOG_DURATION_STREAM(OPERATION_TIME_STRING, std::cerr);
-
     const Query query = ParseQuery(raw_query);
     auto matched_documents = FindAllDocuments(query, comparator);
 

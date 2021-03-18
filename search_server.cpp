@@ -30,7 +30,6 @@ void SearchServer::AddDocument(int document_id, const std::string& document, Doc
 
     for (const std::string& word : words) {
         word_to_document_freqs_[word][document_id] += inv_word_count;
-
         document_to_word_freqs_[document_id][word] += inv_word_count;
     }
 
@@ -63,8 +62,6 @@ std::vector<Document> SearchServer::FindTopDocuments(const std::string& raw_quer
 }
 
 std::tuple<std::vector<std::string>, DocumentStatus> SearchServer::MatchDocument(const std::string& raw_query, int document_id) const {
-    LOG_DURATION_STREAM(OPERATION_TIME_STRING, std::cerr);
-
     const Query query = ParseQuery(raw_query);
     std::vector<std::string> match_words;
 
@@ -88,6 +85,8 @@ int SearchServer::GetDocumentCount() const {
 }
 
 const std::map<std::string, double>& SearchServer::GetWordFrequencies(int document_id) const {
+    const static std::map<std::string, double> EMPTY_MAP = {};
+    
     if (document_to_word_freqs_.count(document_id)) {
         return document_to_word_freqs_.at(document_id);
     }
