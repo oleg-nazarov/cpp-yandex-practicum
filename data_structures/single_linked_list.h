@@ -4,7 +4,6 @@
 #include <cstddef>
 #include <initializer_list>
 #include <iterator>
-#include <string>
 #include <utility>
 
 template <typename Type>
@@ -50,17 +49,21 @@ class SingleLinkedList {
         }
 
         [[nodiscard]] reference operator*() const {
+            assert(iter_);
+
             return iter_->value;
         }
 
         [[nodiscard]] pointer operator->() const {
+            assert(iter_);
+
             return &iter_->value;
         }
 
         BasicIterator& operator++() {
-            if (iter_ != nullptr) {
-                iter_ = iter_->next_node;
-            }
+            assert(iter_);
+
+            iter_ = iter_->next_node;
 
             return *this;
         }
@@ -87,13 +90,15 @@ class SingleLinkedList {
 
     SingleLinkedList() : size_(0u) {}
     SingleLinkedList(std::initializer_list<Type> other) {
-        SingleLinkedList temp = get_temp(other.begin(), other.end());
+        SingleLinkedList temp;
+        fill_temp_list(temp, other.begin(), other.end());
 
         this->swap(temp);
     }
 
-    SingleLinkedList(const SingleLinkedList& other) noexcept {
-        SingleLinkedList temp = get_temp(other.begin(), other.end());
+    explicit SingleLinkedList(const SingleLinkedList& other) {
+        SingleLinkedList temp;
+        fill_temp_list(temp, other.begin(), other.end());
 
         this->swap(temp);
     }
@@ -103,9 +108,10 @@ class SingleLinkedList {
     }
 
     SingleLinkedList& operator=(const SingleLinkedList& other) {
-        SingleLinkedList temp = get_temp(other.begin(), other.end());
-
-        this->swap(temp);
+        if (this != &other) {
+            SingleLinkedList temp(other);
+            this->swap(temp);
+        }
 
         return *this;
     }
@@ -148,11 +154,11 @@ class SingleLinkedList {
     }
 
     ConstIterator begin() const noexcept {
-        return ConstIterator(head_.next_node);
+        return cbegin();
     }
 
     ConstIterator end() const noexcept {
-        return ConstIterator(nullptr);
+        return cend();
     }
 
     ConstIterator cbegin() const noexcept {
@@ -250,20 +256,15 @@ class SingleLinkedList {
     size_t size_;
 
     template <typename Iterator>
-    SingleLinkedList get_temp(Iterator it_begin, Iterator it_end) {
-        SingleLinkedList temp;
+    void fill_temp_list(SingleLinkedList& temp_list, Iterator other_begin, Iterator other_end) {
+        Node* last_filled_node = &temp_list.head_;
 
-        Node* last_node = &temp.head_;
-        while (it_begin != it_end) {
-            last_node->next_node = new Node(*it_begin, nullptr);
-            last_node = last_node->next_node;
+        for (Iterator it = other_begin; it != other_end; ++it) {
+            last_filled_node->next_node = new Node(*it, nullptr);
+            last_filled_node = last_filled_node->next_node;
 
-            ++temp.size_;
-
-            ++it_begin;
+            ++temp_list.size_;
         }
-
-        return temp;
     }
 };
 
