@@ -33,18 +33,11 @@ class SimpleVector {
 
     SimpleVector() noexcept = default;
 
-    explicit SimpleVector(size_t size) {
-        Reserve(size);
-
-        std::fill(begin(), begin() + size, Type());
-        size_ = size;
-    }
-
     explicit SimpleVector(ReserveProxyObj obj) {
         Reserve(obj.GetCapacity());
     }
 
-    SimpleVector(size_t size, const Type& value) {
+    SimpleVector(size_t size, const Type& value = Type()) {
         Reserve(size);
 
         std::fill(begin(), begin() + size, value);
@@ -74,24 +67,30 @@ class SimpleVector {
 
     SimpleVector& operator=(const SimpleVector& rhs) {
         if (*this != rhs) {
-            SimpleVector<Type> temp;
-            temp.Reserve(rhs.capacity_);
-            std::copy(rhs.begin(), rhs.end(), temp.begin());
-            temp.size_ = rhs.size_;
+            if (rhs.size_ != 0u) {
+                SimpleVector<Type> temp;
+                temp.Reserve(rhs.capacity_);
+                std::copy(rhs.begin(), rhs.end(), temp.begin());
 
-            this->swap(temp);
+                this->swap(temp);
+            }
+
+            size_ = rhs.size_;
         }
 
         return *this;
     }
 
     SimpleVector& operator=(SimpleVector&& rhs) {
-        SimpleVector<Type> temp;
-        temp.Reserve(std::exchange(rhs.capacity_, 0));
-        std::move(rhs.begin(), rhs.end(), temp.begin());
-        temp.size_ = std::exchange(rhs.size_, 0);
+        if (rhs.size_ != 0u) {
+            SimpleVector<Type> temp;
+            temp.Reserve(std::exchange(rhs.capacity_, 0));
+            std::move(rhs.begin(), rhs.end(), temp.begin());
 
-        this->swap(temp);
+            this->swap(temp);
+        }
+
+        size_ = std::exchange(rhs.size_, 0);
 
         return *this;
     }
@@ -109,16 +108,20 @@ class SimpleVector {
     }
 
     Type& operator[](size_t index) noexcept {
+        assert(index < size_);
+
         return items_[index];
     }
 
     const Type& operator[](size_t index) const noexcept {
+        assert(index < size_);
+
         return items_[index];
     }
 
     Type& At(size_t index) {
         if (index >= size_) {
-            throw std::out_of_range("");
+            ThrowIndexOutOfRange(index);
         }
 
         return items_[index];
@@ -126,7 +129,7 @@ class SimpleVector {
 
     const Type& At(size_t index) const {
         if (index >= size_) {
-            throw std::out_of_range("");
+            ThrowIndexOutOfRange(index);
         }
 
         return items_[index];
@@ -153,6 +156,8 @@ class SimpleVector {
     Iterator Insert(ConstIterator pos, const Type& value) {
         Iterator non_const_pos = const_cast<Iterator>(pos);
 
+        assert(non_const_pos >= items_.Get() && non_const_pos <= &items_[size_]);
+
         if (size_ == capacity_) {
             size_t idx = non_const_pos - items_.Get();
 
@@ -170,6 +175,8 @@ class SimpleVector {
     Iterator Insert(ConstIterator pos, Type&& value) {
         Iterator non_const_pos = const_cast<Iterator>(pos);
 
+        assert(non_const_pos >= items_.Get() && non_const_pos <= &items_[size_]);
+
         if (size_ == capacity_) {
             size_t idx = non_const_pos - items_.Get();
 
@@ -185,13 +192,16 @@ class SimpleVector {
     }
 
     void PopBack() noexcept {
-        if (size_ > 0u) {
-            --size_;
-        }
+        assert(size_ > 0u);
+
+        --size_;
     }
 
     Iterator Erase(ConstIterator pos) {
         Iterator non_const_pos = const_cast<Iterator>(pos);
+
+        assert(non_const_pos >= items_.Get() && non_const_pos < &items_[size_]);
+
         std::move(non_const_pos + 1, &items_[size_ + 1], non_const_pos);
         --size_;
 
@@ -263,6 +273,12 @@ class SimpleVector {
 
     size_t GetDoubledCapacity() noexcept {
         return capacity_ == 0u ? 1 : capacity_ * 2;
+    }
+
+    void ThrowIndexOutOfRange(size_t index) const {
+        using namespace std::literals::string_literals;
+
+        throw std::out_of_range("index "s + std::to_string(index) + " >= size_ "s + std::to_string(size_));
     }
 };
 

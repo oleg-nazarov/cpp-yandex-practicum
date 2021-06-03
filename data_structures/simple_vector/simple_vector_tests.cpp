@@ -355,7 +355,7 @@ void TestNoncopiableErase() {
 }
 
 int main() {
-    cout << "Start..." << endl;
+    cout << "Start..."s << endl;
 
     TestInitialization();
     TestMethods();
@@ -370,7 +370,7 @@ int main() {
     TestNoncopiableInsert();
     TestNoncopiableErase();
 
-    cout << "Done!" << endl;
+    cout << "Done!"s << endl;
 
     return 0;
 }
