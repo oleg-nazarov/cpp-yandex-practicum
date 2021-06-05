@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "../data_structures/single_linked_list.h"
 #include "document.h"
 #include "paginator.h"
 #include "remove_duplicates.h"
@@ -346,144 +345,6 @@ void TestRelevanceCalculating() {
     }
 }
 
-void TestSingleLinkedList() {
-    struct DeletionSpy {
-        ~DeletionSpy() {
-            if (deletion_counter_ptr) {
-                ++(*deletion_counter_ptr);
-            }
-        }
-        int* deletion_counter_ptr = nullptr;
-    };
-
-    // PopFront
-    {
-        SingleLinkedList<int> numbers{3, 14, 15, 92, 6};
-        numbers.PopFront();
-        ASSERT((numbers == SingleLinkedList<int>{14, 15, 92, 6}));
-
-        SingleLinkedList<DeletionSpy> list;
-        list.PushFront(DeletionSpy{});
-        int deletion_counter = 0;
-        list.begin()->deletion_counter_ptr = &deletion_counter;
-        ASSERT(deletion_counter == 0);
-        list.PopFront();
-        ASSERT(deletion_counter == 1);
-    }
-
-    // before_begin and cbefore_begin
-    {
-        SingleLinkedList<int> empty_list;
-        const auto& const_empty_list = empty_list;
-        ASSERT(empty_list.before_begin() == empty_list.cbefore_begin());
-        ASSERT(++empty_list.before_begin() == empty_list.begin());
-        ASSERT(++empty_list.cbefore_begin() == const_empty_list.begin());
-
-        SingleLinkedList<int> numbers{1, 2, 3, 4};
-        const auto& const_numbers = numbers;
-        ASSERT(numbers.before_begin() == numbers.cbefore_begin());
-        ASSERT(++numbers.before_begin() == numbers.begin());
-        ASSERT(++numbers.cbefore_begin() == const_numbers.begin());
-    }
-
-    // InsertAfter
-    {  // in empty list
-        {
-            SingleLinkedList<int> lst;
-            const auto inserted_item_pos = lst.InsertAfter(lst.before_begin(), 123);
-            ASSERT((lst == SingleLinkedList<int>{123}));
-            ASSERT(inserted_item_pos == lst.begin());
-            ASSERT(*inserted_item_pos == 123);
-        }
-
-        // in non empty list
-        {
-            SingleLinkedList<int> lst{1, 2, 3};
-            auto inserted_item_pos = lst.InsertAfter(lst.before_begin(), 123);
-
-            ASSERT(inserted_item_pos == lst.begin());
-            ASSERT(inserted_item_pos != lst.end());
-            ASSERT(*inserted_item_pos == 123);
-            ASSERT((lst == SingleLinkedList<int>{123, 1, 2, 3}));
-
-            inserted_item_pos = lst.InsertAfter(lst.begin(), 555);
-            ASSERT(++SingleLinkedList<int>::Iterator(lst.begin()) == inserted_item_pos);
-            ASSERT(*inserted_item_pos == 555);
-            ASSERT((lst == SingleLinkedList<int>{123, 555, 1, 2, 3}));
-        };
-    }
-
-    // helper that throw an exception after creating n-th copy
-    struct ThrowOnCopy {
-        ThrowOnCopy() = default;
-        explicit ThrowOnCopy(int& copy_counter) noexcept : countdown_ptr(&copy_counter) {}
-        ThrowOnCopy(const ThrowOnCopy& other) : countdown_ptr(other.countdown_ptr) {
-            if (countdown_ptr) {
-                if (*countdown_ptr == 0) {
-                    throw std::bad_alloc();
-                } else {
-                    --(*countdown_ptr);
-                }
-            }
-        }
-
-        ThrowOnCopy& operator=(const ThrowOnCopy& rhs) = delete;
-        // not being equal to nullptr, it counts down on every step of copying
-        // as soon as it gets 0 the copy construct throws an exception
-        int* countdown_ptr = nullptr;
-    };
-
-    // copy-and-swap idiom
-    {
-        bool exception_was_thrown = false;
-        for (int max_copy_counter = 10; max_copy_counter >= 0; --max_copy_counter) {
-            SingleLinkedList<ThrowOnCopy> list{ThrowOnCopy{}, ThrowOnCopy{}, ThrowOnCopy{}};
-            try {
-                int copy_counter = max_copy_counter;
-                list.InsertAfter(list.cbegin(), ThrowOnCopy(copy_counter));
-                ASSERT(list.GetSize() == 4u);
-            } catch (const std::bad_alloc&) {
-                exception_was_thrown = true;
-                ASSERT(list.GetSize() == 3u);
-                break;
-            }
-        }
-        ASSERT(exception_was_thrown);
-    }
-
-    // EraseAfter
-    {
-        {
-            SingleLinkedList<int> lst{1, 2, 3, 4};
-            const auto& const_lst = lst;
-            const auto item_after_erased = lst.EraseAfter(const_lst.cbefore_begin());
-            ASSERT((lst == SingleLinkedList<int>{2, 3, 4}));
-            ASSERT(item_after_erased == lst.begin());
-        }
-        {
-            SingleLinkedList<int> lst{1, 2, 3, 4};
-            const auto item_after_erased = lst.EraseAfter(lst.cbegin());
-            ASSERT((lst == SingleLinkedList<int>{1, 3, 4}));
-            ASSERT(item_after_erased == (++lst.begin()));
-        }
-        {
-            SingleLinkedList<int> lst{1, 2, 3, 4};
-            const auto item_after_erased = lst.EraseAfter(++(++lst.cbegin()));
-            ASSERT((lst == SingleLinkedList<int>{1, 2, 3}));
-            ASSERT(item_after_erased == lst.end());
-        }
-        {
-            SingleLinkedList<DeletionSpy> list{DeletionSpy{}, DeletionSpy{}, DeletionSpy{}};
-            auto after_begin = ++list.begin();
-            int deletion_counter = 0;
-            after_begin->deletion_counter_ptr = &deletion_counter;
-            ASSERT(deletion_counter == 0u);
-            list.EraseAfter(list.cbegin());
-            ASSERT(deletion_counter == 1u);
-        }
-    }
-}
-
 // Функция TestSearchServer является точкой входа для запуска тестов
 void TestSearchServer() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
@@ -496,7 +357,6 @@ void TestSearchServer() {
     RUN_TEST(TestSearchResultWithComparator);
     RUN_TEST(TestSearchResultToDocumentStatus);
     RUN_TEST(TestRelevanceCalculating);
-    RUN_TEST(TestSingleLinkedList);
 }
 
 int main() {
