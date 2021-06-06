@@ -2,16 +2,19 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "document.h"
 #include "paginator.h"
+#include "process_queries.h"
 #include "remove_duplicates.h"
 #include "request_queue.h"
 #include "search_server.h"
 #include "test_example_functions.h"
 
 using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 // макросы ASSERT, ASSERT_EQUAL, ASSERT_EQUAL_HINT, ASSERT_HINT и RUN_TEST
 #define RUN_TEST(func) \
@@ -89,7 +92,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
     }
 
     {
-        SearchServer server("in the"s);
+        SearchServer server("in the"sv);
         server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
         ASSERT_HINT(server.FindTopDocuments("in"s).empty(), "Stop words must be excluded from documents"s);
     }
@@ -345,6 +348,39 @@ void TestRelevanceCalculating() {
     }
 }
 
+void TestProcessQueries() {
+    const std::vector<std::string> texts = {
+        "funny pet and nasty rat"s,
+        "funny pet with curly hair"s,
+        "funny pet and not very nasty rat"s,
+        "pet with rat and rat and rat"s,
+        "nasty rat with curly hair"s,
+    };
+    const std::vector<std::string> queries = {
+        "nasty rat -not"s,
+        "not very funny nasty pet"s,
+        "curly hair"s,
+    };
+
+    SearchServer search_server("and with"sv);
+    int id = 0;
+    for (const std::string& text : texts) {
+        search_server.AddDocument(++id, text, DocumentStatus::ACTUAL, {1, 2});
+    }
+
+    // ProcessQueries
+    {
+        const auto documents = ProcessQueries(search_server, queries);
+        ASSERT_EQUAL(documents.size(), queries.size());
+    }
+
+    // ProcessQueriesJoined
+    {
+        const auto documents = ProcessQueriesJoined(search_server, queries);
+        ASSERT_EQUAL(documents.size(), 10u);
+    }
+}
+
 // Функция TestSearchServer является точкой входа для запуска тестов
 void TestSearchServer() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
@@ -357,6 +393,7 @@ void TestSearchServer() {
     RUN_TEST(TestSearchResultWithComparator);
     RUN_TEST(TestSearchResultToDocumentStatus);
     RUN_TEST(TestRelevanceCalculating);
+    RUN_TEST(TestProcessQueries);
 }
 
 int main() {
