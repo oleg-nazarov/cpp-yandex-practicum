@@ -1,6 +1,8 @@
 #pragma once
 #include <algorithm>
+#include <atomic>
 #include <execution>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <set>
@@ -9,8 +11,9 @@
 #include <tuple>
 #include <vector>
 
+#include "../data_structures/concurrent_map/concurrent_map.h"
+#include "../helpers/log_duration.h"
 #include "document.h"
-#include "log_duration.h"
 #include "string_processing.h"
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
@@ -172,40 +175,43 @@ template <typename ExecutionPolicy>
 std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDocument(
     ExecutionPolicy&& policy, std::string_view raw_query, int document_id) const {
     const Query query = ParseQuery(raw_query);
-    std::vector<std::string_view> match_words;
+    std::vector<std::string_view> match_words(query.plus_words.size());
 
-    for (std::string_view word : query.plus_words) {
-        // to create a string_view we should use such string that will not die after outing out
-        // of scope (so we use "word_s" below)
-        auto it = word_to_document_freqs_.find(std::string(word));
-        const auto& word_s = it->first;
-        const auto& doc_freqs = it->second;
+    std::function<bool(const std::pair<int, double>&)> check_equal_doc_id = [&document_id](const auto& kv) {
+        return kv.first == document_id;
+    };
 
-        int count_doc_id = count_if(
-            policy,
-            doc_freqs.begin(), doc_freqs.end(),
-            [&document_id](const auto& kv) {
-                return kv.first == document_id;
-            });
+    std::atomic_int size = 0;
+    std::for_each(
+        policy,
+        query.plus_words.begin(), query.plus_words.end(),
+        [&](std::string_view word) {
+            // to create a string_view we should use a string that will not die after outing out
+            // of scope (so we use "word_s" below)
+            auto it = word_to_document_freqs_.find(std::string(word));
+            const auto& word_s = it->first;
+            const auto& doc_freqs = it->second;
 
-        if (count_doc_id) {
-            match_words.push_back(std::string_view(word_s));
-        }
-    }
+            int count_doc_id = count_if(
+                policy,
+                doc_freqs.begin(), doc_freqs.end(),
+                check_equal_doc_id);
 
-    for (std::string_view word : query.minus_words) {
-        const std::map<int, double>& doc_freqs = word_to_document_freqs_.at(std::string(word));
+            if (count_doc_id) {
+                match_words[size++] = std::string_view(word_s);
+            }
+        });
+    match_words.resize(size);
 
-        int count_doc_id = count_if(
-            policy,
-            doc_freqs.begin(), doc_freqs.end(),
-            [&document_id](const auto& kv) {
-                return kv.first == document_id;
-            });
-
-        if (count_doc_id) {
-            match_words.clear();
-        }
+    bool should_clear_matched_words = std::any_of(
+        policy,
+        query.minus_words.begin(), query.minus_words.end(),
+        [&](std::string_view word) {
+            const std::map<int, double>& doc_freqs = word_to_document_freqs_.at(std::string(word));
+            return doc_freqs.count(document_id) > 0u;
+        });
+    if (should_clear_matched_words) {
+        match_words.clear();
     }
 
     return std::make_tuple(match_words, document_ratings_status_.at(document_id).status);
@@ -213,8 +219,7 @@ std::tuple<std::vector<std::string_view>, DocumentStatus> SearchServer::MatchDoc
 
 template <typename ExecutionPolicy, typename Comparator>
 std::vector<Document> SearchServer::FindAllDocuments(ExecutionPolicy&& policy, const Query& query, Comparator comparator) const {
-    std::map<int, double> document_to_relevance;
-    std::mutex m;  // for writing to document_to_relevance
+    ConcurrentMap<int, double> concurr_map(4);
 
     std::for_each(
         policy,
@@ -224,34 +229,44 @@ std::vector<Document> SearchServer::FindAllDocuments(ExecutionPolicy&& policy, c
             if (word_to_document_freqs_.count(word)) {
                 const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
 
-                for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                    Document document_data = document_ratings_status_.at(document_id);
+                const auto& doc_freqs = word_to_document_freqs_.at(word);
+                std::for_each(
+                    policy,
+                    doc_freqs.begin(), doc_freqs.end(),
+                    [&](const auto& kv) {
+                        auto& [document_id, term_freq] = kv;
 
-                    bool should_add_document = comparator(
-                        document_id,
-                        document_data.status,
-                        document_data.rating);
+                        Document document_data = document_ratings_status_.at(document_id);
 
-                    if (!should_add_document) {
-                        continue;
-                    }
+                        bool should_add_document = comparator(
+                            document_id,
+                            document_data.status,
+                            document_data.rating);
 
-                    std::lock_guard guard(m);
-                    document_to_relevance[document_id] += term_freq * inverse_document_freq;
-                }
+                        if (should_add_document) {
+                            concurr_map[document_id].ref_to_value += term_freq * inverse_document_freq;
+                        }
+                    });
             }
         });
 
-    for (std::string_view word_v : query.minus_words) {
-        std::string word(word_v);
-        if (word_to_document_freqs_.count(word) == 0) {
-            continue;
-        }
+    std::map<int, double> document_to_relevance;
+    document_to_relevance = concurr_map.BuildOrdinaryMap();
+    std::mutex m;  // erasing from document_to_relevance
 
-        for (const auto [document_id, _] : word_to_document_freqs_.at(word)) {
-            document_to_relevance.erase(document_id);
-        }
-    }
+    std::for_each(
+        policy,
+        query.minus_words.begin(), query.minus_words.end(),
+        [&](std::string_view word_v) {
+            std::string word(word_v);
+
+            if (word_to_document_freqs_.count(word)) {
+                for (const auto& [document_id, _] : word_to_document_freqs_.at(word)) {
+                    std::lock_guard guard(m);
+                    document_to_relevance.erase(document_id);
+                }
+            }
+        });
 
     std::vector<Document> matched_documents(document_to_relevance.size());
     std::transform(

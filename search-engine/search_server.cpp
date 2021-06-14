@@ -10,8 +10,8 @@
 #include <tuple>
 #include <vector>
 
+#include "../helpers/log_duration.h"
 #include "document.h"
-#include "log_duration.h"
 #include "string_processing.h"
 
 using namespace std::string_literals;

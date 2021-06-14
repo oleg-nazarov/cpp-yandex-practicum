@@ -5,57 +5,17 @@
 #include <string_view>
 #include <vector>
 
-#include "document.h"
-#include "paginator.h"
-#include "process_queries.h"
-#include "remove_duplicates.h"
-#include "request_queue.h"
-#include "search_server.h"
-#include "test_example_functions.h"
+#include "../../helpers/run_test.h"
+#include "../document.h"
+#include "../paginator.h"
+#include "../process_queries.h"
+#include "../remove_duplicates.h"
+#include "../request_queue.h"
+#include "../search_server.h"
+#include "../test_example_functions.h"
 
 using namespace std::string_literals;
 using namespace std::string_view_literals;
-
-// макросы ASSERT, ASSERT_EQUAL, ASSERT_EQUAL_HINT, ASSERT_HINT и RUN_TEST
-#define RUN_TEST(func) \
-    func();            \
-    std::cerr << #func << ": OK." << std::endl;
-
-template <typename A, typename B>
-void AssertEqualImpl(const A a, const B b, const std::string& a_str, const std::string& b_str,
-                     const std::string& file_name, const int line_number, const std::string& func_name,
-                     const std::string& hint) {
-    if (a != b) {
-        std::cerr << std::boolalpha;
-        std::cerr << file_name << "("s << line_number << "): "s << func_name << ": "s;
-        std::cerr << "ASSERT_EQUAL("s << a_str << ", "s << b_str << ") failed: "s;
-        std::cerr << a << " != "s << b << "."s;
-
-        if (!hint.empty()) {
-            std::cerr << " Hint: "s << hint;
-        }
-
-        std::abort();
-    }
-}
-#define ASSERT_EQUAL(a, b) AssertEqualImpl(a, b, #a, #b, __FILE__, __LINE__, __FUNCTION__, "")
-#define ASSERT_EQUAL_HINT(a, b, hint) AssertEqualImpl(a, b, #a, #b, __FILE__, __LINE__, __FUNCTION__, hint)
-
-void AssertImpl(const bool value, const std::string& value_str, const std::string& file_name,
-                const int line_number, const std::string& func_name, const std::string& hint) {
-    if (!value) {
-        std::cerr << file_name << "("s << line_number << "): "s << func_name << ": "s;
-        std::cerr << "ASSERT("s << value_str << ") failed."s;
-
-        if (!hint.empty()) {
-            std::cerr << " Hint: "s << hint;
-        }
-
-        std::abort();
-    }
-}
-#define ASSERT(value) AssertImpl(value, #value, __FILE__, __LINE__, __FUNCTION__, "")
-#define ASSERT_HINT(value, hint) AssertImpl(value, #value, __FILE__, __LINE__, __FUNCTION__, hint)
 
 std::ostream& operator<<(std::ostream& os, DocumentStatus doc) {
     const char* status = 0;
@@ -76,7 +36,6 @@ std::ostream& operator<<(std::ostream& os, DocumentStatus doc) {
     return os;
 }
 
-// -------- the start of unit tests for a search engine ----------
 void TestExcludeStopWordsFromAddedDocumentContent() {
     const int doc_id = 42;
     const std::string content = "cat in the city";
@@ -381,8 +340,7 @@ void TestProcessQueries() {
     }
 }
 
-// Функция TestSearchServer является точкой входа для запуска тестов
-void TestSearchServer() {
+int main() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
     RUN_TEST(TestDocumentsCount);
     RUN_TEST(TestAddingDocument);
@@ -394,10 +352,6 @@ void TestSearchServer() {
     RUN_TEST(TestSearchResultToDocumentStatus);
     RUN_TEST(TestRelevanceCalculating);
     RUN_TEST(TestProcessQueries);
-}
-
-int main() {
-    TestSearchServer();
 
     return 0;
 }

@@ -3,7 +3,7 @@
 #include <numeric>
 #include <stdexcept>
 
-#include "simple_vector.h"
+#include "../simple_vector.h"
 
 using namespace std;
 
