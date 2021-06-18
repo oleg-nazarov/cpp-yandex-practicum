@@ -273,11 +273,11 @@ void TestRelevanceCalculating() {
         // founded two docs with "cat" below have the same idf, so we can use it to check
         // and compare tf (found_docs_cat[0] has tf "1" and found_docs_cat[1] has "1/3"):
         const auto found_docs_cat = server.FindTopDocuments("cat"s);
-        const double is_zero_1 = abs(found_docs_cat[0].relevance / found_docs_cat[1].relevance - 3.0) < EPS;
+        const double is_zero_1 = fabs(found_docs_cat[0].relevance / found_docs_cat[1].relevance - 3.0) < EPS;
         ASSERT(is_zero_1);
 
         const auto found_docs_other = server.FindTopDocuments("other"s);
-        const double is_zero_2 = abs(found_docs_other[0].relevance / found_docs_other[1].relevance - 3.0 / 2) < EPS;
+        const double is_zero_2 = fabs(found_docs_other[0].relevance / found_docs_other[1].relevance - 3.0 / 2) < EPS;
         ASSERT(is_zero_2);
     }
 
@@ -296,13 +296,13 @@ void TestRelevanceCalculating() {
         server.AddDocument(doc_id_2, content_2, DocumentStatus::ACTUAL, ratings);
         const auto found_docs_cat = server.FindTopDocuments("cat"s);
         const double cat_relevance = 1 * log(2.0 / 1);
-        const double is_zero_1 = abs(found_docs_cat[0].relevance - cat_relevance) < EPS;
+        const double is_zero_1 = fabs(found_docs_cat[0].relevance - cat_relevance) < EPS;
         ASSERT(is_zero_1);
 
         server.AddDocument(doc_id_3, content_3, DocumentStatus::ACTUAL, ratings);
         const auto found_docs_other = server.FindTopDocuments("cat"s);
         const double other_relevance = 1 * log(3.0 / 1);
-        const double is_zero_2 = abs(found_docs_other[0].relevance - other_relevance) < EPS;
+        const double is_zero_2 = fabs(found_docs_other[0].relevance - other_relevance) < EPS;
         ASSERT(is_zero_2);
     }
 }
