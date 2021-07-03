@@ -1,12 +1,20 @@
 #pragma once
 
-#include "request_processing.h"
+#include <iostream>
+
 #include "transport_catalogue.h"
 
 namespace route {
-namespace request {
+namespace stat_request {
+
+void Read(std::istream& input, std::ostream& output, const TransportCatalogue& catalogue);
+
+std::ostream& operator<<(std::ostream& os, const BusInfo& info);
 
 namespace detail {
+
+const std::string_view STOP_SV = "Stop";
+const std::string_view BUS_SV = "Bus";
 
 const std::string_view STOPS_ON_ROUTE_SV = "stops on route";
 const std::string_view UNIQUE_STOPS_SV = "unique stops";
@@ -16,15 +24,28 @@ const std::string_view NOT_FOUND_SV = "not found";
 const std::string_view NO_BUSES_SV = "no buses";
 const std::string_view CURVATURE_SV = "curvature";
 
+enum class RequestType {
+    GET_STOP,
+    GET_BUS,
+};
+
+struct Request {
+    Request(RequestType&& type, std::string&& object_name);
+
+    RequestType type;
+    std::string object_name;
+};
+
+Request GetProcessedRequest(std::string_view line_sv);
+
+RequestType GetRequestType(std::string_view& line_sv);
+std::string GetObjectName(std::string_view& line_sv);
+
+void HandleBusInfoRequest(std::ostream& output, const TransportCatalogue& catalogue, const Request& request);
+
+void HandleStopToBusesRequest(std::ostream& output, const TransportCatalogue& catalogue, const Request& request);
+
 }  // namespace detail
 
-void HandleStat(const TransportCatalogue& catalogue);
-
-void GetBusInfoRequest(const TransportCatalogue& catalogue, const Request& request);
-
-void GetBusesByStopRequest(const TransportCatalogue& catalogue, const Request& request);
-
-std::ostream& operator<<(std::ostream& os, const BusInfo& info);
-
-}  // namespace request
+}  // namespace stat_request
 }  // namespace route

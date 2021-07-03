@@ -36,38 +36,33 @@ struct Distance {
     unsigned long long distance;
 };
 
-struct StopPoint {
+struct Stop {
     geo::Coordinates coordinates;
     std::set<std::string_view> buses;
 };
 
 class TransportCatalogue {
    public:
-    void AddStop(std::string_view name, double latitude, double longitude);
-    void AddStop(std::string_view name, double latitude, double longitude,
-                 std::vector<Distance>&& stop_distances);
+    void AddStop(std::string_view name, geo::Coordinates& coordinates);
+    void AddStopAndDistances(std::string_view name, geo::Coordinates& coordinates, std::vector<Distance>&& stop_distances);
 
-    void AddBusFromOneWay(std::string_view name, const std::vector<std::string_view>& one_way_stops);
-    void AddBusFromRoundTrip(std::string_view name, const std::vector<std::string_view>& round_trip_stops);
+    void AddBus(std::string_view name, const std::vector<std::string>& stops, bool is_one_way_stops);
 
-    StopPoint GetStop(std::string_view name) const;
+    Stop GetStop(std::string_view name) const;
+    Bus GetBus(std::string_view name) const;
 
     std::optional<std::set<std::string_view>> GetBusesByStop(std::string_view stop) const;
-
-    void UpdateAllBusesInfo();
 
     std::optional<BusInfo> GetBusInfo(std::string_view name) const;
 
    private:
     std::unordered_set<std::string> stop_names_;
     std::unordered_set<std::string> bus_names_;
-    std::unordered_map<std::string_view, StopPoint> stops_;
+    std::unordered_map<std::string_view, Stop> stops_;
     std::unordered_map<std::string_view, Bus> buses_;
     std::unordered_map<std::string_view, std::unordered_map<std::string_view, unsigned long long>> stop_stop_distances_;
 
-    void AddBus(std::string_view name, const std::vector<std::string_view>& stops);
-
-    void UpdateBusInfo(std::string_view name);
+    BusInfo CalculateBusInfo(std::string_view name);
 
     double GetEuclideanDistance(const std::vector<std::string_view>& bus_stops) const;
     unsigned long long GetRoadDistance(const std::vector<std::string_view>& bus_stops) const;
@@ -77,7 +72,7 @@ class TransportCatalogue {
                                           std::unordered_set<std::string>& original_names,
                                           std::unordered_map<std::string_view, T>& container);
 
-    std::vector<std::string_view> GetOriginalStopNamesSV(const std::vector<std::string_view>& stops);
+    std::vector<std::string_view> GetOriginalStopNamesSV(const std::vector<std::string>& stops);
 
     size_t GetBusUniqueStopsCount(std::string_view name) const;
 };

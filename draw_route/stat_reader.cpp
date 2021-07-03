@@ -4,66 +4,33 @@
 #include <iostream>
 #include <optional>
 #include <set>
-#include <sstream>
 #include <string>
 #include <string_view>
 
-#include "request_processing.h"
 #include "transport_catalogue.h"
 
 namespace route {
-namespace request {
+namespace stat_request {
 
-void HandleStat(const TransportCatalogue& catalogue) {
+void Read(std::istream& input, std::ostream& output, const TransportCatalogue& catalogue) {
+    using namespace detail;
+
     std::string line;
 
-    size_t requests_count;
-    std::getline(std::cin, line);
-    std::stringstream requests_count_ss(line);
-    requests_count_ss >> requests_count;
+    std::getline(input, line);
+    int requests_count = std::stoi(line);
 
     for (size_t _ = 0; _ < requests_count; ++_) {
-        std::getline(std::cin, line);
+        std::getline(input, line);
 
-        const Request request = GetProcessedStatRequest(line);
+        const Request request = detail::GetProcessedRequest(line);
 
-        if (request.type == RequestType::BUS) {
-            GetBusInfoRequest(catalogue, request);
-        } else if (request.type == RequestType::STOP) {
-            GetBusesByStopRequest(catalogue, request);
+        if (request.type == RequestType::GET_BUS) {
+            HandleBusInfoRequest(output, catalogue, request);
+        } else if (request.type == RequestType::GET_STOP) {
+            HandleStopToBusesRequest(output, catalogue, request);
         }
     }
-}
-
-void GetBusInfoRequest(const TransportCatalogue& catalogue, const Request& request) {
-    std::optional<BusInfo> bus_info = catalogue.GetBusInfo(request.object_name);
-
-    std::cout << std::setprecision(6) << detail::BUS_SV << ' ' << request.object_name << ':' << ' ';
-    if (bus_info.has_value()) {
-        std::cout << bus_info.value();
-    } else {
-        std::cout << detail::NOT_FOUND_SV;
-    }
-    std::cout << '\n';
-}
-
-void GetBusesByStopRequest(const TransportCatalogue& catalogue, const Request& request) {
-    std::optional<std::set<std::string_view>> buses = catalogue.GetBusesByStop(request.object_name);
-
-    std::cout << detail::STOP_SV << ' ' << request.object_name << ':' << ' ';
-    if (buses.has_value()) {
-        if (buses.value().size() == 0u) {
-            std::cout << detail::NO_BUSES_SV;
-        } else {
-            std::cout << detail::BUSES_SV << ' ';
-            for (std::string_view bus : buses.value()) {
-                std::cout << bus << ' ';
-            }
-        }
-    } else {
-        std::cout << detail::NOT_FOUND_SV;
-    }
-    std::cout << '\n';
 }
 
 std::ostream& operator<<(std::ostream& os, const BusInfo& info) {
@@ -76,5 +43,78 @@ std::ostream& operator<<(std::ostream& os, const BusInfo& info) {
     return os;
 }
 
-}  // namespace request
+namespace detail {
+
+Request::Request(RequestType&& type, std::string&& object_name) : type(type), object_name(object_name) {}
+
+Request GetProcessedRequest(std::string_view line_sv) {
+    RequestType request_type = GetRequestType(line_sv);
+    std::string object_name = GetObjectName(line_sv);
+
+    Request request{std::move(request_type), std::move(object_name)};
+
+    return request;
+}
+
+RequestType GetRequestType(std::string_view& line_sv) {
+    size_t n_start = line_sv.find_first_not_of(' ');
+    size_t n_end = line_sv.find(' ', n_start);
+
+    std::string_view request_type_sv = line_sv.substr(n_start, n_end - n_start);
+    line_sv.remove_prefix(n_end + 1);
+
+    return request_type_sv == STOP_SV ? RequestType::GET_STOP : RequestType::GET_BUS;
+}
+
+std::string GetObjectName(std::string_view& line_sv) {
+    size_t n_start = line_sv.find_first_not_of(' ');
+    size_t n_end = line_sv.find(':', n_start);
+
+    std::string_view object_name_sv = line_sv.substr(n_start, n_end - n_start);
+
+    line_sv.remove_prefix(n_end + 1);
+
+    return std::string(object_name_sv);
+}
+
+void HandleBusInfoRequest(std::ostream& output, const TransportCatalogue& catalogue, const Request& request) {
+    std::optional<BusInfo> bus_info = catalogue.GetBusInfo(request.object_name);
+
+    output << std::setprecision(6) << BUS_SV << ' ' << request.object_name << ':' << ' ';
+    if (bus_info.has_value()) {
+        output << bus_info.value();
+    } else {
+        output << NOT_FOUND_SV;
+    }
+    output << '\n';
+}
+
+void HandleStopToBusesRequest(std::ostream& output, const TransportCatalogue& catalogue, const Request& request) {
+    std::optional<std::set<std::string_view>> buses = catalogue.GetBusesByStop(request.object_name);
+
+    output << STOP_SV << ' ' << request.object_name << ':' << ' ';
+    if (buses.has_value()) {
+        if (buses.value().size() == 0u) {
+            output << NO_BUSES_SV;
+        } else {
+            output << BUSES_SV << ' ';
+
+            for (auto bus_it = buses.value().begin(); bus_it != buses.value().end(); /* ++ inside */) {
+                output << *bus_it;
+
+                ++bus_it;
+                if (bus_it != buses.value().end()) {
+                    output << ' ';
+                }
+            }
+        }
+    } else {
+        output << NOT_FOUND_SV;
+    }
+    output << '\n';
+}
+
+}  // namespace detail
+
+}  // namespace stat_request
 }  // namespace route

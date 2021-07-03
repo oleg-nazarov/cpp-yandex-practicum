@@ -20,15 +20,15 @@ BusInfo::BusInfo() = default;
 BusInfo::BusInfo(size_t s_c, size_t u_s_c, double e_d, unsigned long long r_d)
     : stops_count(s_c), unique_stops_count(u_s_c), euclidean_distance(e_d), road_distance(r_d), curvature(static_cast<double>(r_d) / e_d) {}
 
-void TransportCatalogue::AddStop(std::string_view name, double latitude, double longitude) {
+void TransportCatalogue::AddStop(std::string_view name, geo::Coordinates& coordinates) {
     std::string_view stop_name_sv = GetOneOriginalNameSV(name, stop_names_, stops_);
 
-    stops_[stop_name_sv].coordinates = {latitude, longitude};
+    stops_[stop_name_sv].coordinates = {coordinates.lat, coordinates.lng};
 }
 
-void TransportCatalogue::AddStop(std::string_view name, double latitude, double longitude,
-                                 std::vector<Distance>&& stop_distances) {
-    AddStop(std::move(name), latitude, longitude);
+void TransportCatalogue::AddStopAndDistances(std::string_view name, geo::Coordinates& coordinates,
+                                             std::vector<Distance>&& stop_distances) {
+    AddStop(name, coordinates);
 
     for (const Distance& distance : stop_distances) {
         // stops can appear at bus's description before being inserted into stops_
@@ -37,9 +37,9 @@ void TransportCatalogue::AddStop(std::string_view name, double latitude, double 
 
         stop_stop_distances_[from_sv][to_sv] = distance.distance;
 
-        // besides writing "from-to" distance we also must write "to-from" one, if only we
-        // already had not written a distance with "to-from" names, which on previous AddStop() call
-        //  was "from-to" ("from-to" has a higher priority than "to-from")
+        // besides writing a "from-to" distance we also must write a "to-from" one, if we only had not
+        // written a distance with "to-from" names at one of the previous "AddStopAndDistances()"-call,
+        // which previously was "from-to" ("from-to" has a higher priority than "to-from")
         if (stop_stop_distances_.count(to_sv) == 0u ||
             stop_stop_distances_[to_sv].count(from_sv) == 0u) {
             stop_stop_distances_[to_sv][from_sv] = distance.distance;
@@ -47,29 +47,33 @@ void TransportCatalogue::AddStop(std::string_view name, double latitude, double 
     }
 }
 
-void TransportCatalogue::AddBusFromOneWay(std::string_view name, const std::vector<std::string_view>& one_way_stops) {
-    std::vector<std::string_view> stop_names = GetOriginalStopNamesSV(one_way_stops);
-    std::vector<std::string_view> reversed_stop_names(stop_names.rbegin(), stop_names.rend());
-    stop_names.insert(stop_names.end(), std::move_iterator(reversed_stop_names.begin() + 1),
-                      std::move_iterator(reversed_stop_names.end()));
+void TransportCatalogue::AddBus(std::string_view name, const std::vector<std::string>& stops,
+                                bool is_one_way_stops) {
+    std::vector<std::string_view> stop_names_sv = GetOriginalStopNamesSV(stops);
 
-    AddBus(name, stop_names);
+    if (is_one_way_stops) {
+        std::vector<std::string_view> reversed_stop_names_sv(stop_names_sv.rbegin(), stop_names_sv.rend());
+
+        stop_names_sv.insert(stop_names_sv.end(), std::move_iterator(reversed_stop_names_sv.begin() + 1),
+                             std::move_iterator(reversed_stop_names_sv.end()));
+    }
+
+    std::string_view bus_name_sv = GetOneOriginalNameSV(name, bus_names_, buses_);
+
+    for (std::string_view stop_sv : stop_names_sv) {
+        stops_[stop_sv].buses.insert(bus_name_sv);
+    }
+
+    buses_[bus_name_sv].stops = std::move(stop_names_sv);
+    buses_[bus_name_sv].info = CalculateBusInfo(bus_name_sv);
 }
 
-void TransportCatalogue::AddBusFromRoundTrip(std::string_view name, const std::vector<std::string_view>& round_trip_stops) {
-    std::vector<std::string_view> stop_names = GetOriginalStopNamesSV(round_trip_stops);
-
-    AddBus(name, stop_names);
-}
-
-StopPoint TransportCatalogue::GetStop(std::string_view name) const {
+Stop TransportCatalogue::GetStop(std::string_view name) const {
     return stops_.at(name);
 }
 
-void TransportCatalogue::UpdateAllBusesInfo() {
-    for (auto it = buses_.begin(); it != buses_.end(); ++it) {
-        UpdateBusInfo(it->first);
-    }
+Bus TransportCatalogue::GetBus(std::string_view name) const {
+    return buses_.at(name);
 }
 
 std::optional<BusInfo> TransportCatalogue::GetBusInfo(std::string_view name) const {
@@ -77,17 +81,7 @@ std::optional<BusInfo> TransportCatalogue::GetBusInfo(std::string_view name) con
         return std::nullopt;
     }
 
-    return buses_.at(name).info;
-}
-
-void TransportCatalogue::AddBus(std::string_view name, const std::vector<std::string_view>& stops) {
-    std::string_view bus_name_sv = GetOneOriginalNameSV(name, bus_names_, buses_);
-
-    for (std::string_view stop : stops) {
-        stops_[stop].buses.insert(bus_name_sv);
-    }
-
-    buses_[bus_name_sv].stops = std::move(stops);
+    return GetBus(name).info;
 }
 
 std::optional<std::set<std::string_view>> TransportCatalogue::GetBusesByStop(std::string_view stop) const {
@@ -98,7 +92,7 @@ std::optional<std::set<std::string_view>> TransportCatalogue::GetBusesByStop(std
     return stops_.at(stop).buses;
 }
 
-void TransportCatalogue::UpdateBusInfo(std::string_view name) {
+BusInfo TransportCatalogue::CalculateBusInfo(std::string_view name) {
     const std::vector<std::string_view> bus_stops = buses_.at(name).stops;
 
     double euclidean_distance = GetEuclideanDistance(bus_stops);
@@ -106,15 +100,15 @@ void TransportCatalogue::UpdateBusInfo(std::string_view name) {
 
     BusInfo bus_info{bus_stops.size(), GetBusUniqueStopsCount(name), euclidean_distance, road_distance};
 
-    buses_[name].info = bus_info;
+    return bus_info;
 }
 
 double TransportCatalogue::GetEuclideanDistance(const std::vector<std::string_view>& bus_stops) const {
     double total_distance = .0;
 
     for (size_t i = 1; i < bus_stops.size(); ++i) {
-        StopPoint stop_from = GetStop(bus_stops.at(i - 1));
-        StopPoint stop_to = GetStop(bus_stops.at(i));
+        Stop stop_from = GetStop(bus_stops.at(i - 1));
+        Stop stop_to = GetStop(bus_stops.at(i));
 
         total_distance += ComputeDistance(stop_from.coordinates, stop_to.coordinates);
     }
@@ -132,15 +126,15 @@ unsigned long long TransportCatalogue::GetRoadDistance(const std::vector<std::st
     return total_distance;
 }
 
-std::vector<std::string_view> TransportCatalogue::GetOriginalStopNamesSV(const std::vector<std::string_view>& stops) {
+std::vector<std::string_view> TransportCatalogue::GetOriginalStopNamesSV(const std::vector<std::string>& stops) {
     std::vector<std::string_view> original_stop_names;
     original_stop_names.reserve(stops.size());
 
     std::transform(
         stops.begin(), stops.end(),
         std::back_inserter(original_stop_names),
-        [&](std::string_view stop_name) {
-            std::string_view stop_name_sv = GetOneOriginalNameSV(std::move(stop_name), stop_names_, stops_);
+        [&](const std::string& stop_name) {
+            std::string_view stop_name_sv = GetOneOriginalNameSV(stop_name, stop_names_, stops_);
 
             return stop_name_sv;
         });
