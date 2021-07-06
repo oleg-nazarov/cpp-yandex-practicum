@@ -41,9 +41,9 @@ Request GetProcessedRequest(std::string_view line_sv);
 RequestType GetRequestType(std::string_view& line_sv);
 std::string GetObjectName(std::string_view& line_sv);
 
-void HandleBusInfoRequest(std::ostream& output, const TransportCatalogue& catalogue, const Request& request);
+void PrintBusInfo(std::ostream& output, const TransportCatalogue& catalogue, const Request& request);
 
-void HandleStopToBusesRequest(std::ostream& output, const TransportCatalogue& catalogue, const Request& request);
+void PrintStopToBuses(std::ostream& output, const TransportCatalogue& catalogue, const Request& request);
 
 }  // namespace detail
 

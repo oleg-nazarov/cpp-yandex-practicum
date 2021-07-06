@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cassert>
 #include <optional>
 #include <set>
 #include <string>
@@ -44,7 +43,6 @@ struct Stop {
 class TransportCatalogue {
    public:
     void AddStop(std::string_view name, geo::Coordinates& coordinates);
-    void AddStopAndDistances(std::string_view name, geo::Coordinates& coordinates, std::vector<Distance>&& stop_distances);
 
     void AddBus(std::string_view name, const std::vector<std::string>& stops, bool is_one_way_stops);
 
@@ -54,6 +52,8 @@ class TransportCatalogue {
     std::optional<std::set<std::string_view>> GetBusesByStop(std::string_view stop) const;
 
     std::optional<BusInfo> GetBusInfo(std::string_view name) const;
+
+    void SetDistances(std::vector<Distance>&& stop_distances);
 
    private:
     std::unordered_set<std::string> stop_names_;

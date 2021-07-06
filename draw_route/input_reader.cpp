@@ -46,9 +46,8 @@ void Read(std::istream& input, TransportCatalogue& catalogue) {
 
 namespace detail {
 
-Request::Request(RequestType&& type, std::string&& object_name,
-                 std::vector<std::string>&& data, std::string&& data_delimiter)
-    : type(type), object_name(object_name), data(data), data_delimiter(data_delimiter) {}
+Request::Request(RequestType&& type, std::string&& object_name, std::vector<std::string>&& data, std::string&& data_delimiter)
+    : type(std::move(type)), object_name(std::move(object_name)), data(std::move(data)), data_delimiter(std::move(data_delimiter)) {}
 
 Request GetProcessedRequest(std::string_view line_sv) {
     RequestType request_type = GetRequestType(line_sv);
@@ -144,6 +143,8 @@ std::vector<std::pair<std::string_view, std::string_view>> GetProcessedDistances
 void HandleAddStop(TransportCatalogue& catalogue, const Request& request) {
     geo::Coordinates coordinates{std::stod(request.data[0]), std::stod(request.data[1])};
 
+    catalogue.AddStop(request.object_name, coordinates);
+
     // if there is info about distances except latitude and longitude
     if (request.data.size() > 2u) {
         std::vector<std::pair<std::string_view, std::string_view>> distances_sv =
@@ -163,9 +164,7 @@ void HandleAddStop(TransportCatalogue& catalogue, const Request& request) {
                 return d;
             });
 
-        catalogue.AddStopAndDistances(request.object_name, coordinates, std::move(distances));
-    } else {
-        catalogue.AddStop(request.object_name, coordinates);
+        catalogue.SetDistances(std::move(distances));
     }
 }
 

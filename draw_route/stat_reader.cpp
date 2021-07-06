@@ -26,9 +26,9 @@ void Read(std::istream& input, std::ostream& output, const TransportCatalogue& c
         const Request request = detail::GetProcessedRequest(line);
 
         if (request.type == RequestType::GET_BUS) {
-            HandleBusInfoRequest(output, catalogue, request);
+            PrintBusInfo(output, catalogue, request);
         } else if (request.type == RequestType::GET_STOP) {
-            HandleStopToBusesRequest(output, catalogue, request);
+            PrintStopToBuses(output, catalogue, request);
         }
     }
 }
@@ -45,7 +45,8 @@ std::ostream& operator<<(std::ostream& os, const BusInfo& info) {
 
 namespace detail {
 
-Request::Request(RequestType&& type, std::string&& object_name) : type(type), object_name(object_name) {}
+Request::Request(RequestType&& type, std::string&& object_name) : type(std::move(type)),
+                                                                  object_name(std::move(object_name)) {}
 
 Request GetProcessedRequest(std::string_view line_sv) {
     RequestType request_type = GetRequestType(line_sv);
@@ -77,7 +78,7 @@ std::string GetObjectName(std::string_view& line_sv) {
     return std::string(object_name_sv);
 }
 
-void HandleBusInfoRequest(std::ostream& output, const TransportCatalogue& catalogue, const Request& request) {
+void PrintBusInfo(std::ostream& output, const TransportCatalogue& catalogue, const Request& request) {
     std::optional<BusInfo> bus_info = catalogue.GetBusInfo(request.object_name);
 
     output << std::setprecision(6) << BUS_SV << ' ' << request.object_name << ':' << ' ';
@@ -89,7 +90,7 @@ void HandleBusInfoRequest(std::ostream& output, const TransportCatalogue& catalo
     output << '\n';
 }
 
-void HandleStopToBusesRequest(std::ostream& output, const TransportCatalogue& catalogue, const Request& request) {
+void PrintStopToBuses(std::ostream& output, const TransportCatalogue& catalogue, const Request& request) {
     std::optional<std::set<std::string_view>> buses = catalogue.GetBusesByStop(request.object_name);
 
     output << STOP_SV << ' ' << request.object_name << ':' << ' ';

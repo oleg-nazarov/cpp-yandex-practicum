@@ -1,8 +1,6 @@
 #pragma once
 
 #include <cmath>
-#include <set>
-#include <string_view>
 
 namespace route {
 namespace geo {
