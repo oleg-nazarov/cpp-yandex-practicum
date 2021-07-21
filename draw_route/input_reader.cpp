@@ -11,9 +11,10 @@
 #include "transport_catalogue.h"
 
 namespace route {
+namespace io {
 namespace input_request {
 
-void Read(std::istream& input, TransportCatalogue& catalogue) {
+void __DEPRECATED__Read(std::istream& input, TransportCatalogue& catalogue) {
     using namespace detail;
 
     std::string line;
@@ -25,7 +26,7 @@ void Read(std::istream& input, TransportCatalogue& catalogue) {
     // only STOP-requests and delay BUS-requests
     std::queue<Request> delayed_requests;
 
-    for (size_t _ = 0; _ < requests_count; ++_) {
+    for (int _ = 0; _ < requests_count; ++_) {
         std::getline(input, line);
 
         const Request request = GetProcessedRequest(line);
@@ -175,4 +176,5 @@ void HandleAddBus(TransportCatalogue& catalogue, const Request& request) {
 }  // namespace detail
 
 }  // namespace input_request
+}  // namespace io
 }  // namespace route

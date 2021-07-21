@@ -2,12 +2,14 @@
 
 #include <iostream>
 
+#include "domain.h"
 #include "transport_catalogue.h"
 
 namespace route {
+namespace io {
 namespace stat_request {
 
-void Read(std::istream& input, std::ostream& output, const TransportCatalogue& catalogue);
+void __DEPRECATED__Read(std::istream& input, std::ostream& output, const TransportCatalogue& catalogue);
 
 std::ostream& operator<<(std::ostream& os, const BusInfo& info);
 
@@ -48,4 +50,5 @@ void PrintStopToBuses(std::ostream& output, const TransportCatalogue& catalogue,
 }  // namespace detail
 
 }  // namespace stat_request
+}  // namespace io
 }  // namespace route

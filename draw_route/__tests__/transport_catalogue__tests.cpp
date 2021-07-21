@@ -1,11 +1,13 @@
 #include <sstream>
 
 #include "../../helpers/run_test.h"
+#include "../domain.h"
 #include "../input_reader.h"
+#include "../json_reader.h"
 #include "../stat_reader.h"
 #include "../transport_catalogue.h"
 
-void TestMockedData() {
+void TestMockedWithDEPRECATEDRead() {
     std::istringstream input{
         "13\n"
         "Stop Tolstopaltsevo: 55.611087, 37.20829, 3900m to Marushkino\n"
@@ -40,14 +42,19 @@ void TestMockedData() {
 
     route::TransportCatalogue catalogue;
 
-    route::input_request::Read(input, catalogue);
-    route::stat_request::Read(input, output, catalogue);
+    route::io::input_request::__DEPRECATED__Read(input, catalogue);
+    route::io::stat_request::__DEPRECATED__Read(input, output, catalogue);
 
     ASSERT_EQUAL(output.str(), mock_output);
 }
 
+void TestMockedWithReadJSON() {
+    ASSERT(true);
+}
+
 int main() {
-    RUN_TEST(TestMockedData);
+    RUN_TEST(TestMockedWithDEPRECATEDRead);
+    RUN_TEST(TestMockedWithReadJSON);
 
     return 0;
 }

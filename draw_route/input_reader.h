@@ -7,9 +7,10 @@
 #include "transport_catalogue.h"
 
 namespace route {
+namespace io {
 namespace input_request {
 
-void Read(std::istream& input, TransportCatalogue& catalogue);
+void __DEPRECATED__Read(std::istream& input, TransportCatalogue& catalogue);
 
 namespace detail {
 
@@ -54,4 +55,5 @@ void HandleAddBus(TransportCatalogue& catalogue, const Request& request);
 }  // namespace detail
 
 }  // namespace input_request
+}  // namespace io
 }  // namespace route

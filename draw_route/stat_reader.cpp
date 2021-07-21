@@ -10,9 +10,10 @@
 #include "transport_catalogue.h"
 
 namespace route {
+namespace io {
 namespace stat_request {
 
-void Read(std::istream& input, std::ostream& output, const TransportCatalogue& catalogue) {
+void __DEPRECATED__Read(std::istream& input, std::ostream& output, const TransportCatalogue& catalogue) {
     using namespace detail;
 
     std::string line;
@@ -20,7 +21,7 @@ void Read(std::istream& input, std::ostream& output, const TransportCatalogue& c
     std::getline(input, line);
     int requests_count = std::stoi(line);
 
-    for (size_t _ = 0; _ < requests_count; ++_) {
+    for (int _ = 0; _ < requests_count; ++_) {
         std::getline(input, line);
 
         const Request request = detail::GetProcessedRequest(line);
@@ -118,4 +119,5 @@ void PrintStopToBuses(std::ostream& output, const TransportCatalogue& catalogue,
 }  // namespace detail
 
 }  // namespace stat_request
+}  // namespace io
 }  // namespace route

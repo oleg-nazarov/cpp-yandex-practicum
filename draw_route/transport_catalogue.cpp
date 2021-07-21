@@ -1,6 +1,7 @@
 #include "transport_catalogue.h"
 
 #include <algorithm>
+#include <execution>
 #include <iterator>
 #include <optional>
 #include <set>
@@ -13,10 +14,6 @@
 #include "geo.h"
 
 namespace route {
-
-BusInfo::BusInfo() = default;
-BusInfo::BusInfo(size_t s_c, size_t u_s_c, double e_d, unsigned long long r_d)
-    : stops_count(s_c), unique_stops_count(u_s_c), euclidean_distance(e_d), road_distance(r_d), curvature(static_cast<double>(r_d) / e_d) {}
 
 void TransportCatalogue::AddStop(std::string_view name, geo::Coordinates& coordinates) {
     std::string_view stop_name_sv = GetOneOriginalNameSV(name, stop_names_, stops_);
@@ -43,14 +40,34 @@ void TransportCatalogue::AddBus(std::string_view name, const std::vector<std::st
 
     buses_[bus_name_sv].stops = std::move(stop_names_sv);      // #1
     buses_[bus_name_sv].info = CalculateBusInfo(bus_name_sv);  // #2 (uses a consequence of #1)
+    buses_[bus_name_sv].name = bus_name_sv;                    // TODO: may be change structure for storing only one bus_name
+    buses_[bus_name_sv].is_roundtrip = !is_one_way_stops;
+}
+
+Bus TransportCatalogue::GetBus(std::string_view name) const {
+    return buses_.at(name);
 }
 
 Stop TransportCatalogue::GetStop(std::string_view name) const {
     return stops_.at(name);
 }
 
-Bus TransportCatalogue::GetBus(std::string_view name) const {
-    return buses_.at(name);
+std::vector<const Bus*> TransportCatalogue::GetAllBuses() const {
+    std::vector<const Bus*> buses(buses_.size());
+
+    std::transform(
+        std::execution::par,
+        buses_.begin(), buses_.end(),
+        buses.begin(),
+        [](const auto& p) {
+            return &(p.second);
+        });
+
+    return buses;
+}
+
+const std::unordered_map<std::string_view, Stop>& TransportCatalogue::GetAllStops() const {
+    return stops_;
 }
 
 std::optional<BusInfo> TransportCatalogue::GetBusInfo(std::string_view name) const {
