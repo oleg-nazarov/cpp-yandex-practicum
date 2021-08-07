@@ -31,7 +31,7 @@ class TransportCatalogue {
     std::vector<const Bus*> GetAllBuses() const;
     const std::unordered_map<std::string_view, Stop>& GetAllStops() const;
 
-    std::optional<std::set<std::string_view>> GetBusesByStop(std::string_view stop) const;
+    std::optional<const std::set<std::string_view>*> GetBusesByStop(std::string_view stop) const;
 
     std::optional<BusInfo> GetBusInfo(std::string_view name) const;
 

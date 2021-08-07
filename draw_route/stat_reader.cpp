@@ -92,20 +92,20 @@ void PrintBusInfo(std::ostream& output, const TransportCatalogue& catalogue, con
 }
 
 void PrintStopToBuses(std::ostream& output, const TransportCatalogue& catalogue, const Request& request) {
-    std::optional<std::set<std::string_view>> buses = catalogue.GetBusesByStop(request.object_name);
+    std::optional<const std::set<std::string_view>*> buses = catalogue.GetBusesByStop(request.object_name);
 
     output << STOP_SV << ' ' << request.object_name << ':' << ' ';
     if (buses.has_value()) {
-        if (buses.value().size() == 0u) {
+        if (buses.value()->size() == 0u) {
             output << NO_BUSES_SV;
         } else {
             output << BUSES_SV << ' ';
 
-            for (auto bus_it = buses.value().begin(); bus_it != buses.value().end(); /* ++ inside */) {
+            for (auto bus_it = buses.value()->begin(); bus_it != buses.value()->end(); /* ++ inside */) {
                 output << *bus_it;
 
                 ++bus_it;
-                if (bus_it != buses.value().end()) {
+                if (bus_it != buses.value()->end()) {
                     output << ' ';
                 }
             }

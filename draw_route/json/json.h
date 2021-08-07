@@ -17,16 +17,9 @@ class ParsingError : public std::runtime_error {
     using runtime_error::runtime_error;
 };
 
-class Node {
+class Node final : private std::variant<std::nullptr_t, Array, Dict, bool, int, double, std::string> {
    public:
-    Node();
-    Node(std::nullptr_t);
-    Node(Array array);
-    Node(Dict dict);
-    Node(bool value);
-    Node(int value);
-    Node(double value);
-    Node(std::string value);
+    using variant::variant;
 
     const Array& AsArray() const;
     bool AsBool() const;
@@ -43,12 +36,6 @@ class Node {
     bool IsNull() const;
     bool IsPureDouble() const;
     bool IsString() const;
-
-    bool operator==(const Node& other) const;
-    bool operator!=(const Node& other) const;
-
-   private:
-    std::variant<std::nullptr_t, Array, Dict, bool, int, double, std::string> value_;
 };
 
 class Document {
@@ -56,9 +43,6 @@ class Document {
     explicit Document(Node root);
 
     const Node& GetRoot() const;
-
-    bool operator==(const Document& other) const;
-    bool operator!=(const Document& other) const;
 
    private:
     Node root_;

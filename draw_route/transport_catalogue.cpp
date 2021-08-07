@@ -78,12 +78,12 @@ std::optional<BusInfo> TransportCatalogue::GetBusInfo(std::string_view name) con
     return GetBus(name).info;
 }
 
-std::optional<std::set<std::string_view>> TransportCatalogue::GetBusesByStop(std::string_view stop) const {
+std::optional<const std::set<std::string_view>*> TransportCatalogue::GetBusesByStop(std::string_view stop) const {
     if (stops_.count(stop) == 0u) {
         return std::nullopt;
     }
 
-    return stops_.at(stop).buses;
+    return &(stops_.at(stop).buses);
 }
 
 void TransportCatalogue::SetDistances(std::vector<Distance>&& stop_distances) {

@@ -7,12 +7,14 @@ namespace json {
 Node LoadNode(istream& input);
 
 Node LoadNull(istream& input) {
+    using namespace std::literals;
+
     const static string NULL_S = "null";
 
     // we start from 1 because we'd extracted first char before we called this function
     for (size_t i = 1; i < NULL_S.size(); ++i) {
         if (input.peek() == EOF || input.get() != NULL_S[i]) {
-            throw ParsingError("A null is expected");
+            throw ParsingError("A null is expected"s);
         }
     }
 
@@ -20,9 +22,11 @@ Node LoadNull(istream& input) {
 }
 
 void CheckBoolParsingOrThrow(istream& input, const string& bool_s) {
+    using namespace std::literals;
+
     for (size_t i = 0; i < bool_s.size(); ++i) {
         if (input.peek() == EOF || input.get() != bool_s[i]) {
-            throw ParsingError("A bool is expected");
+            throw ParsingError("A bool is expected"s);
         }
     }
 }
@@ -125,6 +129,8 @@ Node LoadNumber(istream& input) {
 }
 
 Node LoadString(istream& input) {
+    using namespace std::literals;
+
     string line;
 
     char c;
@@ -161,13 +167,15 @@ Node LoadString(istream& input) {
     input >> skipws;
 
     if (c != '"') {
-        throw ParsingError("A string is expected");
+        throw ParsingError("A string is expected"s);
     }
 
     return Node(move(line));
 }
 
 Node LoadDict(istream& input) {
+    using namespace std::literals;
+
     Dict result;
 
     char c;
@@ -182,13 +190,15 @@ Node LoadDict(istream& input) {
     }
 
     if (c != '}') {
-        throw ParsingError("A dict is expected");
+        throw ParsingError("A dict is expected"s);
     }
 
     return Node(move(result));
 }
 
 Node LoadNode(istream& input) {
+    using namespace std::literals;
+
     char c;
     input >> c;
 
@@ -207,105 +217,93 @@ Node LoadNode(istream& input) {
         input.putback(c);
         return LoadNumber(input);
     } else {
-        throw ParsingError("Failed to parse");
+        throw ParsingError("Failed to parse"s);
     }
 }
-
-Node::Node() = default;
-Node::Node(nullptr_t) : value_(nullptr) {}
-Node::Node(Array array) : value_(move(array)) {}
-Node::Node(Dict dict) : value_(move(dict)) {}
-Node::Node(bool value) : value_(move(value)) {}
-Node::Node(int value) : value_(move(value)) {}
-Node::Node(double value) : value_(move(value)) {}
-Node::Node(string value) : value_(move(value)) {}
 
 const Array& Node::AsArray() const {
+    using namespace std::literals;
+
     try {
-        return get<Array>(value_);
+        return get<Array>(*this);
     } catch (bad_variant_access& e) {
-        throw logic_error("Wrong type");
+        throw logic_error("Wrong type"s);
     }
 }
+using namespace std::literals;
 bool Node::AsBool() const {
     try {
-        return get<bool>(value_);
+        return get<bool>(*this);
     } catch (bad_variant_access& e) {
-        throw logic_error("Wrong type");
+        throw logic_error("Wrong type"s);
     }
 }
 double Node::AsDouble() const {
+    using namespace std::literals;
+
     try {
-        return IsPureDouble() ? get<double>(value_) : static_cast<double>(get<int>(value_));
+        return IsPureDouble() ? get<double>(*this) : static_cast<double>(get<int>(*this));
     } catch (bad_variant_access& e) {
-        throw logic_error("Wrong type");
+        throw logic_error("Wrong type"s);
     }
 }
 int Node::AsInt() const {
+    using namespace std::literals;
+
     try {
-        return get<int>(value_);
+        return get<int>(*this);
     } catch (bad_variant_access& e) {
-        throw logic_error("Wrong type");
+        throw logic_error("Wrong type"s);
     }
 }
 const Dict& Node::AsMap() const {
+    using namespace std::literals;
+
     try {
-        return get<Dict>(value_);
+        return get<Dict>(*this);
     } catch (bad_variant_access& e) {
-        throw logic_error("Wrong type");
+        throw logic_error("Wrong type"s);
     }
 }
 const string& Node::AsString() const {
+    using namespace std::literals;
+
     try {
-        return get<string>(value_);
+        return get<string>(*this);
     } catch (bad_variant_access& e) {
-        throw logic_error("Wrong type");
+        throw logic_error("Wrong type"s);
     }
 }
 
 bool Node::IsArray() const {
-    return holds_alternative<Array>(value_);
+    return holds_alternative<Array>(*this);
 }
 bool Node::IsBool() const {
-    return holds_alternative<bool>(value_);
+    return holds_alternative<bool>(*this);
 }
 bool Node::IsDouble() const {
-    return holds_alternative<double>(value_) || holds_alternative<int>(value_);
+    return holds_alternative<double>(*this) || holds_alternative<int>(*this);
 }
 bool Node::IsInt() const {
-    return holds_alternative<int>(value_);
+    return holds_alternative<int>(*this);
 }
 bool Node::IsMap() const {
-    return holds_alternative<Dict>(value_);
+    return holds_alternative<Dict>(*this);
 }
 bool Node::IsNull() const {
-    return holds_alternative<nullptr_t>(value_);
+    return holds_alternative<nullptr_t>(*this);
 }
 bool Node::IsPureDouble() const {
-    return holds_alternative<double>(value_);
+    return holds_alternative<double>(*this);
 }
 bool Node::IsString() const {
-    return holds_alternative<string>(value_);
-}
-
-bool Node::operator==(const Node& other) const {
-    return value_ == other.value_;
-}
-bool Node::operator!=(const Node& other) const {
-    return !(*this == other);
+    return holds_alternative<string>(*this);
 }
 
 Document::Document(Node root) : root_(move(root)) {}
 
 const Node& Document::GetRoot() const {
     return root_;
-}
-
-bool Document::operator==(const Document& other) const {
-    return this->GetRoot() == other.GetRoot();
-}
-bool Document::operator!=(const Document& other) const {
-    return !(*this == other);
 }
 
 Document Load(istream& input) {
