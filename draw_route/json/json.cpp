@@ -221,6 +221,15 @@ Node LoadNode(istream& input) {
     }
 }
 
+Array& Node::AsArray() {
+    using namespace std::literals;
+
+    try {
+        return get<Array>(*this);
+    } catch (bad_variant_access& e) {
+        throw logic_error("Wrong type"s);
+    }
+}
 const Array& Node::AsArray() const {
     using namespace std::literals;
 
@@ -230,19 +239,28 @@ const Array& Node::AsArray() const {
         throw logic_error("Wrong type"s);
     }
 }
-using namespace std::literals;
-bool Node::AsBool() const {
+Dict& Node::AsDict() {
+    using namespace std::literals;
+
     try {
-        return get<bool>(*this);
+        return get<Dict>(*this);
     } catch (bad_variant_access& e) {
         throw logic_error("Wrong type"s);
     }
 }
-double Node::AsDouble() const {
+const Dict& Node::AsDict() const {
     using namespace std::literals;
 
     try {
-        return IsPureDouble() ? get<double>(*this) : static_cast<double>(get<int>(*this));
+        return get<Dict>(*this);
+    } catch (bad_variant_access& e) {
+        throw logic_error("Wrong type"s);
+    }
+}
+bool Node::AsBool() const {
+    using namespace std::literals;
+    try {
+        return get<bool>(*this);
     } catch (bad_variant_access& e) {
         throw logic_error("Wrong type"s);
     }
@@ -256,11 +274,11 @@ int Node::AsInt() const {
         throw logic_error("Wrong type"s);
     }
 }
-const Dict& Node::AsMap() const {
+double Node::AsDouble() const {
     using namespace std::literals;
 
     try {
-        return get<Dict>(*this);
+        return IsPureDouble() ? get<double>(*this) : static_cast<double>(get<int>(*this));
     } catch (bad_variant_access& e) {
         throw logic_error("Wrong type"s);
     }
@@ -287,7 +305,7 @@ bool Node::IsDouble() const {
 bool Node::IsInt() const {
     return holds_alternative<int>(*this);
 }
-bool Node::IsMap() const {
+bool Node::IsDict() const {
     return holds_alternative<Dict>(*this);
 }
 bool Node::IsNull() const {
@@ -358,9 +376,9 @@ void PrintNode(const Node& node, ostream& output) {
         output << node.AsDouble();
     } else if (node.IsInt()) {
         output << node.AsInt();
-    } else if (node.IsMap()) {
+    } else if (node.IsDict()) {
         output << "{";
-        for (auto it = node.AsMap().begin(); it != node.AsMap().end(); /* "++it" is inside */) {
+        for (auto it = node.AsDict().begin(); it != node.AsDict().end(); /* "++it" is inside */) {
             const auto& [key_s, value_node] = *it;
 
             PrintNode(Node(key_s), output);
@@ -368,7 +386,7 @@ void PrintNode(const Node& node, ostream& output) {
             PrintNode(value_node, output);
 
             ++it;
-            if (it != node.AsMap().end()) {
+            if (it != node.AsDict().end()) {
                 output << ",";
             }
         }

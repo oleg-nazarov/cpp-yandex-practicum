@@ -21,18 +21,22 @@ class Node final : private std::variant<std::nullptr_t, Array, Dict, bool, int, 
    public:
     using variant::variant;
 
+    Array& AsArray();
     const Array& AsArray() const;
+
+    Dict& AsDict();
+    const Dict& AsDict() const;
+
     bool AsBool() const;
-    double AsDouble() const;
     int AsInt() const;
-    const Dict& AsMap() const;
+    double AsDouble() const;
     const std::string& AsString() const;
 
     bool IsArray() const;
     bool IsBool() const;
     bool IsDouble() const;
     bool IsInt() const;
-    bool IsMap() const;
+    bool IsDict() const;
     bool IsNull() const;
     bool IsPureDouble() const;
     bool IsString() const;

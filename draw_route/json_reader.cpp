@@ -10,6 +10,7 @@
 #include "domain.h"
 #include "geo.h"
 #include "json/json.h"
+#include "json/json_builder.h"
 #include "map_renderer.h"
 #include "transport_catalogue.h"
 
@@ -41,7 +42,7 @@ class RequestHandler {
 };
 
 void HandleRequests(const json::Node& json_node, const std::vector<const RequestHandler*>& handlers) {
-    const json::Dict& json_map = json_node.AsMap();
+    const json::Dict& json_map = json_node.AsDict();
 
     for (const RequestHandler* handler : handlers) {
         const json::Node& request_node = json_map.at(handler->GetRequestType());
@@ -63,7 +64,7 @@ class AddDataHandler : public RequestHandler {
         std::queue<const json::Dict*> buses_queue;
 
         for (const json::Node& req_node : requests) {
-            const json::Dict& request_map = req_node.AsMap();
+            const json::Dict& request_map = req_node.AsDict();
 
             // we handle info about buses after we've handled data about stops, because buses
             // use a stop's latitude and longitude to calculate the route distance
@@ -124,7 +125,7 @@ class AddDataHandler : public RequestHandler {
 
         // set distances
         std::vector<Distance> distances;
-        for (const auto& [to_s, distance_node] : req_map.at(DISTANCES_KEY).AsMap()) {
+        for (const auto& [to_s, distance_node] : req_map.at(DISTANCES_KEY).AsDict()) {
             Distance dist{
                 req_map.at(NAME_KEY).AsString(),
                 to_s,
@@ -153,7 +154,7 @@ class GetDataHandler : public RequestHandler {
         for (const json::Node& req_node : requests) {
             using namespace std::literals::string_literals;
 
-            const std::string& request_type = req_node.AsMap().at(TYPE_KEY).AsString();
+            const std::string& request_type = req_node.AsDict().at(TYPE_KEY).AsString();
 
             if (request_type == BUS_TYPE) {
                 responses.push_back(GetBusInfoResponse(req_node));
@@ -201,61 +202,70 @@ class GetDataHandler : public RequestHandler {
     inline static const std::string NOT_FOUND_S = "not found";
 
     json::Node GetBusInfoResponse(const json::Node& node) const {
-        json::Dict response;
-        const json::Dict& request = node.AsMap();
+        const json::Dict& request = node.AsDict();
 
-        // fill request id:
-        response[REQUEST_ID_KEY] = request.at(ID_KEY);
+        json::Builder json_builder = json::Builder{};
+        json_builder.StartDict();
+
+        // fill request id
+        json_builder.Key(REQUEST_ID_KEY).Value(request.at(ID_KEY));
 
         // fill other info
         if (auto info = (*catalogue_)->GetBusInfo(request.at(NAME_KEY).AsString())) {
-            response[CURVATURE_KEY] = json::Node((*info).curvature);
-
-            response[ROUTE_LENGTH_KEY] = json::Node(static_cast<int>((*info).road_distance));
-
-            response[STOP_COUNT_KEY] = json::Node(static_cast<int>((*info).stops_count));
-
-            response[UNIQUE_STOP_COUNT_KEY] = json::Node(static_cast<int>((*info).unique_stops_count));
+            json_builder
+                .Key(CURVATURE_KEY)
+                .Value((*info).curvature)
+                .Key(ROUTE_LENGTH_KEY)
+                .Value(static_cast<int>((*info).road_distance))
+                .Key(STOP_COUNT_KEY)
+                .Value(static_cast<int>((*info).stops_count))
+                .Key(UNIQUE_STOP_COUNT_KEY)
+                .Value(static_cast<int>((*info).unique_stops_count));
         } else {
-            response[ERROR_MESSAGE_KEY] = json::Node(NOT_FOUND_S);
+            json_builder.Key(ERROR_MESSAGE_KEY).Value(NOT_FOUND_S);
         }
 
-        return json::Node(response);
+        return json_builder.EndDict().Build();
     }
 
     json::Node GetStopInfoResponse(const json::Node& node) const {
-        json::Dict response;
-        const json::Dict& request = node.AsMap();
+        const json::Dict& request = node.AsDict();
+
+        json::Builder json_builder = json::Builder{};
+        json_builder.StartDict();
 
         // fill request id
-        response[REQUEST_ID_KEY] = request.at(ID_KEY);
+        json_builder.Key(REQUEST_ID_KEY).Value(request.at(ID_KEY));
 
         // fill buses array
         if (auto info = (*catalogue_)->GetBusesByStop(request.at(NAME_KEY).AsString())) {
-            json::Array buses_arr;
+            json_builder.Key(BUSES_KEY).StartArray();
 
             for (std::string_view bus_name_sv : *(*info)) {
-                buses_arr.push_back(json::Node(std::string(bus_name_sv)));
+                json_builder.Value(std::string(bus_name_sv));
             }
 
-            response[BUSES_KEY] = json::Node(buses_arr);
+            json_builder.EndArray();
         } else {
-            response[ERROR_MESSAGE_KEY] = json::Node(NOT_FOUND_S);
+            json_builder.Key(ERROR_MESSAGE_KEY).Value(NOT_FOUND_S);
         }
 
-        return json::Node(response);
+        return json_builder.EndDict().Build();
     }
 
     json::Node GetMapResponse(const json::Node& node) const {
-        json::Dict response;
-        const json::Dict& request = node.AsMap();
-
-        response[REQUEST_ID_KEY] = request.at(ID_KEY);
+        const json::Dict& request = node.AsDict();
 
         const std::string map_svg_s = (*map_renderer_)->GetMapSVG((*catalogue_)->GetAllBuses(), (*catalogue_)->GetAllStops());
-        response[MAP_KEY] = json::Node(map_svg_s);
 
-        return json::Node(response);
+        return json::Builder{}
+            .StartDict()
+            .Key(REQUEST_ID_KEY)
+            .Value(request.at(ID_KEY))
+            .Key(MAP_KEY)
+            .Value(map_svg_s)
+            .EndDict()
+            .Build();
     }
 };
 
@@ -266,7 +276,7 @@ class SetMapSettingsHandler : public RequestHandler {
     SetMapSettingsHandler(renderer::MapSettings& map_settings) : RequestHandler(map_settings) {}
 
     void Handle(const json::Node& node) const override {
-        const json::Dict& settings_map = node.AsMap();
+        const json::Dict& settings_map = node.AsDict();
 
         for (const auto& [key_s, value_node] : settings_map) {
             MatchSettingKeyToHandler(key_s, value_node);
