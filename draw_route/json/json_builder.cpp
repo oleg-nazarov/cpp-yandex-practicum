@@ -4,60 +4,57 @@
 #include <iterator>
 
 namespace json {
-namespace detail {
 
-Context::Context(Builder& builder) : builder_(builder) {}
+Builder::Context::Context(Builder& builder) : builder_(builder) {}
 
 // ---------- ValueContext ----------
 
-ValueContext::ValueContext(Builder& builder) : Context(builder) {}
+Builder::ValueContext::ValueContext(Builder& builder) : Context(builder) {}
 
-ArrayContext ValueContext::StartArray() {
+Builder::ArrayContext Builder::ValueContext::StartArray() {
     return builder_.StartArray();
 }
-DictContext ValueContext::StartDict() {
+Builder::DictContext Builder::ValueContext::StartDict() {
     return builder_.StartDict();
 }
 
-ValueOfArrayContext::ValueOfArrayContext(Builder& builder) : ValueContext(builder) {}
+Builder::ValueOfArrayContext::ValueOfArrayContext(Builder& builder) : ValueContext(builder) {}
 
-ArrayContext ValueOfArrayContext::Value(Node node) {
+Builder::ArrayContext Builder::ValueOfArrayContext::Value(Node node) {
     return builder_.ArrayValue(std::move(node));
 }
 
-ValueOfDictContext::ValueOfDictContext(Builder& builder) : ValueContext(builder) {}
+Builder::ValueOfDictContext::ValueOfDictContext(Builder& builder) : ValueContext(builder) {}
 
-DictContext ValueOfDictContext::Value(Node node) {
+Builder::DictContext Builder::ValueOfDictContext::Value(Node node) {
     return builder_.DictValue(std::move(node));
 }
 
 // ---------- ArrayContext ----------
 
-ArrayContext::ArrayContext(Builder& builder) : ValueOfArrayContext(builder) {}
+Builder::ArrayContext::ArrayContext(Builder& builder) : ValueOfArrayContext(builder) {}
 
-Builder& ArrayContext::EndArray() {
+Builder& Builder::ArrayContext::EndArray() {
     return builder_.EndArray();
 }
 
 // ---------- DictContext ----------
 
-DictContext::DictContext(Builder& builder) : Context(builder) {}
+Builder::DictContext::DictContext(Builder& builder) : Context(builder) {}
 
-Builder& DictContext::EndDict() {
+Builder& Builder::DictContext::EndDict() {
     return builder_.EndDict();
 }
-ValueOfDictContext DictContext::Key(std::string key) {
+Builder::ValueOfDictContext Builder::DictContext::Key(std::string key) {
     return builder_.Key(std::move(key));
 }
 
-}  // namespace detail
-
-detail::ArrayContext Builder::StartArray() {
+Builder::ArrayContext Builder::StartArray() {
     CheckCallCorrectnessOrThrow(detail::BuilderMethodType::START_ARRAY);
 
     nodes_stack_.push(Node(Array{}));
 
-    return detail::ArrayContext(*this);
+    return Builder::ArrayContext(*this);
 }
 Builder& Builder::EndArray() {
     CheckCallCorrectnessOrThrow(detail::BuilderMethodType::END_ARRAY);
@@ -70,12 +67,12 @@ Builder& Builder::EndArray() {
     return *this;
 }
 
-detail::DictContext Builder::StartDict() {
+Builder::DictContext Builder::StartDict() {
     CheckCallCorrectnessOrThrow(detail::BuilderMethodType::START_DICT);
 
     nodes_stack_.push(Node(Dict{}));
 
-    return detail::DictContext(*this);
+    return Builder::DictContext(*this);
 }
 Builder& Builder::EndDict() {
     CheckCallCorrectnessOrThrow(detail::BuilderMethodType::END_DICT);
@@ -88,12 +85,12 @@ Builder& Builder::EndDict() {
     return *this;
 }
 
-detail::ValueOfDictContext Builder::Key(std::string key) {
+Builder::ValueOfDictContext Builder::Key(std::string key) {
     CheckCallCorrectnessOrThrow(detail::BuilderMethodType::KEY);
 
     nodes_stack_.push(Node(std::move(key)));
 
-    return detail::ValueOfDictContext(*this);
+    return Builder::ValueOfDictContext(*this);
 }
 
 Builder& Builder::Value(Node value) {
@@ -133,53 +130,66 @@ void Builder::ForwardNode(Node&& node) {
 void Builder::CheckCallCorrectnessOrThrow(const detail::BuilderMethodType& field_type) const {
     using namespace detail;
 
-    if (field_type == BuilderMethodType::START_ARRAY ||
-        field_type == BuilderMethodType::START_DICT ||
-        field_type == BuilderMethodType::VALUE) {
-        if (!nodes_stack_.empty() &&
-            !nodes_stack_.top().IsString() &&
-            !nodes_stack_.top().IsArray()) {
-            throw std::logic_error("wrong attempt to add array/dict/value");
-        }
-    } else if (field_type == BuilderMethodType::END_ARRAY) {
-        if (nodes_stack_.empty() || !nodes_stack_.top().IsArray()) {
-            throw std::logic_error("array is not ready");
-        }
-    } else if (field_type == BuilderMethodType::END_DICT) {
-        if (nodes_stack_.empty() || !nodes_stack_.top().IsDict()) {
-            throw std::logic_error("dict is not ready");
-        }
-    } else if (field_type == BuilderMethodType::KEY) {
-        if (nodes_stack_.empty() || !nodes_stack_.top().IsDict()) {
-            throw std::logic_error("this key must be only the \"key\" for map");
-        }
-    } else if (field_type == BuilderMethodType::BUILD) {
-        if (root_.IsNull()) {
-            throw std::logic_error("could not build empty JSON");
-        }
+    switch (field_type) {
+        case BuilderMethodType::START_ARRAY:
+        case BuilderMethodType::START_DICT:
+        case BuilderMethodType::VALUE:
+            if (!nodes_stack_.empty() &&
+                !nodes_stack_.top().IsString() &&
+                !nodes_stack_.top().IsArray()) {
+                throw std::logic_error("wrong attempt to add array/dict/value");
+            }
+            break;
 
-        if (!nodes_stack_.empty()) {
-            throw std::logic_error("complete unfilled JSON node");
-        }
+        case BuilderMethodType::END_ARRAY:
+            if (nodes_stack_.empty() || !nodes_stack_.top().IsArray()) {
+                throw std::logic_error("array is not ready");
+            }
+            break;
+
+        case BuilderMethodType::END_DICT:
+            if (nodes_stack_.empty() || !nodes_stack_.top().IsDict()) {
+                throw std::logic_error("dict is not ready");
+            }
+            break;
+
+        case BuilderMethodType::KEY:
+            if (nodes_stack_.empty() || !nodes_stack_.top().IsDict()) {
+                throw std::logic_error("this key must be only the \"key\" for map");
+            }
+            break;
+
+        case BuilderMethodType::BUILD:
+            if (root_.IsNull()) {
+                throw std::logic_error("could not build empty JSON");
+            }
+
+            if (!nodes_stack_.empty()) {
+                throw std::logic_error("complete unfilled JSON node");
+            }
+            break;
+
+        default:
+            break;
     }
 }
 
-detail::ArrayContext Builder::ArrayValue(Node value) {
+Builder::ArrayContext Builder::ArrayValue(Node value) {
     Array& arr = nodes_stack_.top().AsArray();
     arr.push_back(std::move(value));
 
-    detail::ArrayContext ctx(*this);
+    Builder::ArrayContext ctx(*this);
     return ctx;
 }
 
-detail::DictContext Builder::DictValue(Node value) {
+Builder::DictContext Builder::DictValue(Node value) {
     Node key_node = std::move(nodes_stack_.top());
     nodes_stack_.pop();
 
     Dict& dict = nodes_stack_.top().AsDict();
     dict[std::move(key_node.AsString())] = std::move(value);
 
-    detail::DictContext ctx(*this);
+    Builder::DictContext ctx(*this);
     return ctx;
 }
 

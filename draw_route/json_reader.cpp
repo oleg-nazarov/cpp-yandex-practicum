@@ -12,6 +12,7 @@
 #include "json/json.h"
 #include "json/json_builder.h"
 #include "map_renderer.h"
+#include "request_handler.h"
 #include "transport_catalogue.h"
 
 namespace route {
@@ -19,44 +20,36 @@ namespace io {
 
 namespace detail {
 
-// ---------- RequestHandler ----------
+// ---------- JSONHandler ----------
 
-class RequestHandler {
+class JSONHandler {
    public:
-    RequestHandler(TransportCatalogue& catalogue) : catalogue_(&catalogue) {}
-    RequestHandler(renderer::MapRenderer& map_renderer) : map_renderer_(&map_renderer) {}
-    RequestHandler(renderer::MapSettings& map_settings) : map_settings_(&map_settings) {}
-    RequestHandler(TransportCatalogue& catalogue, renderer::MapRenderer& map_renderer)
-        : catalogue_(&catalogue), map_renderer_(&map_renderer) {}
+    JSONHandler() = default;
 
-    virtual void Handle(const json::Node& node) const = 0;
+    virtual void Handle(const json::Node& node) = 0;
 
     virtual const std::string& GetRequestType() const = 0;
 
    protected:
-    ~RequestHandler() = default;
-
-    std::optional<TransportCatalogue* const> catalogue_;
-    std::optional<renderer::MapRenderer* const> map_renderer_;
-    std::optional<renderer::MapSettings* const> map_settings_;
+    ~JSONHandler() = default;
 };
 
-void HandleRequests(const json::Node& json_node, const std::vector<const RequestHandler*>& handlers) {
+void HandleJSON(const json::Node& json_node, const std::vector<JSONHandler*>& handlers) {
     const json::Dict& json_map = json_node.AsDict();
 
-    for (const RequestHandler* handler : handlers) {
+    for (JSONHandler* handler : handlers) {
         const json::Node& request_node = json_map.at(handler->GetRequestType());
         handler->Handle(request_node);
     }
 }
 
-// ---------- AddDataHandler ----------
+// ---------- AddDataJSONHandler ----------
 
-class AddDataHandler : public RequestHandler {
+class AddDataJSONHandler : public JSONHandler {
    public:
-    AddDataHandler(TransportCatalogue& catalogue) : RequestHandler(catalogue) {}
+    AddDataJSONHandler(TransportCatalogue& catalogue) : catalogue_(catalogue) {}
 
-    void Handle(const json::Node& node) const override {
+    void Handle(const json::Node& node) override {
         using namespace std::literals::string_literals;
 
         const json::Array& requests = node.AsArray();
@@ -93,6 +86,8 @@ class AddDataHandler : public RequestHandler {
     }
 
    private:
+    route::TransportCatalogue& catalogue_;
+
     inline static const std::string REQUEST_TYPE = "base_requests";
 
     inline static const std::string DISTANCES_KEY = "road_distances";
@@ -112,7 +107,7 @@ class AddDataHandler : public RequestHandler {
             stops.push_back(std::move(stop_node.AsString()));
         }
 
-        (*catalogue_)->AddBus(req_map.at(NAME_KEY).AsString(), stops, !req_map.at(AddDataHandler::ROUNDTRIP_KEY).AsBool());
+        catalogue_.AddBus(req_map.at(NAME_KEY).AsString(), stops, !req_map.at(AddDataJSONHandler::ROUNDTRIP_KEY).AsBool());
     }
 
     void HandleAddStop(const json::Dict& req_map) const {
@@ -121,7 +116,7 @@ class AddDataHandler : public RequestHandler {
             req_map.at(LATITUDE_KEY).AsDouble(),
             req_map.at(LONGITUDE_KEY).AsDouble()};
 
-        (*catalogue_)->AddStop(req_map.at(NAME_KEY).AsString(), coords);
+        catalogue_.AddStop(req_map.at(NAME_KEY).AsString(), coords);
 
         // set distances
         std::vector<Distance> distances;
@@ -134,18 +129,18 @@ class AddDataHandler : public RequestHandler {
             distances.push_back(std::move(dist));
         }
 
-        (*catalogue_)->SetDistances(std::move(distances));
+        catalogue_.SetDistances(std::move(distances));
     }
 };
 
-// ---------- GetDataHandler ----------
+// ---------- GetDataJSONHandler ----------
 
-class GetDataHandler : public RequestHandler {
+class GetDataJSONHandler : public JSONHandler {
    public:
-    GetDataHandler(std::ostream& out, TransportCatalogue& catalogue, renderer::MapRenderer& map_renderer)
-        : RequestHandler(catalogue, map_renderer), out_(out) {}
+    GetDataJSONHandler(std::ostream& out, route::RequestHandler& request_handler)
+        : out_(out), request_handler_(request_handler) {}
 
-    void Handle(const json::Node& node) const override {
+    void Handle(const json::Node& node) override {
         // create json-node
         const json::Array& requests = node.AsArray();
         std::vector<json::Node> responses;
@@ -180,6 +175,7 @@ class GetDataHandler : public RequestHandler {
 
    private:
     std::ostream& out_;
+    route::RequestHandler& request_handler_;
 
     inline static const std::string REQUEST_TYPE = "stat_requests";
 
@@ -211,7 +207,7 @@ class GetDataHandler : public RequestHandler {
         json_builder.Key(REQUEST_ID_KEY).Value(request.at(ID_KEY));
 
         // fill other info
-        if (auto info = (*catalogue_)->GetBusInfo(request.at(NAME_KEY).AsString())) {
+        if (auto info = request_handler_.GetBusInfo(request.at(NAME_KEY).AsString())) {
             json_builder
                 .Key(CURVATURE_KEY)
                 .Value((*info).curvature)
@@ -238,7 +234,7 @@ class GetDataHandler : public RequestHandler {
         json_builder.Key(REQUEST_ID_KEY).Value(request.at(ID_KEY));
 
         // fill buses array
-        if (auto info = (*catalogue_)->GetBusesByStop(request.at(NAME_KEY).AsString())) {
+        if (auto info = request_handler_.GetBusesByStop(request.at(NAME_KEY).AsString())) {
             json_builder.Key(BUSES_KEY).StartArray();
 
             for (std::string_view bus_name_sv : *(*info)) {
@@ -253,10 +249,10 @@ class GetDataHandler : public RequestHandler {
         return json_builder.EndDict().Build();
     }
 
-    json::Node GetMapResponse(const json::Node& node) const {
+    json::Node GetMapResponse(const json::Node& node) {
         const json::Dict& request = node.AsDict();
 
-        const std::string map_svg_s = (*map_renderer_)->GetMapSVG((*catalogue_)->GetAllBuses(), (*catalogue_)->GetAllStops());
+        std::string map_svg_s = request_handler_.GetMapSVG();
 
         return json::Builder{}
             .StartDict()
@@ -271,11 +267,11 @@ class GetDataHandler : public RequestHandler {
 
 // ---------- SetMapSettingsHandler ----------
 
-class SetMapSettingsHandler : public RequestHandler {
+class SetMapSettingsHandler : public JSONHandler {
    public:
-    SetMapSettingsHandler(renderer::MapSettings& map_settings) : RequestHandler(map_settings) {}
+    SetMapSettingsHandler(renderer::MapSettings* const map_settings) : map_settings_(map_settings) {}
 
-    void Handle(const json::Node& node) const override {
+    void Handle(const json::Node& node) override {
         const json::Dict& settings_map = node.AsDict();
 
         for (const auto& [key_s, value_node] : settings_map) {
@@ -288,6 +284,8 @@ class SetMapSettingsHandler : public RequestHandler {
     }
 
    private:
+    renderer::MapSettings* const map_settings_;
+
     inline static const std::string REQUEST_TYPE = "render_settings";
 
     inline static const std::string WIDTH_KEY = "width";
@@ -307,27 +305,27 @@ class SetMapSettingsHandler : public RequestHandler {
         using namespace std::literals;
 
         if (key == WIDTH_KEY) {
-            (*map_settings_)->SetWidth(node.AsDouble());
+            map_settings_->SetWidth(node.AsDouble());
         } else if (key == HEIGHT_KEY) {
-            (*map_settings_)->SetHeight(node.AsDouble());
+            map_settings_->SetHeight(node.AsDouble());
         } else if (key == PADDING_KEY) {
-            (*map_settings_)->SetPadding(node.AsDouble());
+            map_settings_->SetPadding(node.AsDouble());
         } else if (key == LINE_WIDTH_KEY) {
-            (*map_settings_)->SetLineWidth(node.AsDouble());
+            map_settings_->SetLineWidth(node.AsDouble());
         } else if (key == STOP_RADIUS_KEY) {
-            (*map_settings_)->SetStopRadius(node.AsDouble());
+            map_settings_->SetStopRadius(node.AsDouble());
         } else if (key == BUS_LABEL_FONT_SIZE_KEY) {
-            (*map_settings_)->SetBusLabelFontSize(node.AsInt());
+            map_settings_->SetBusLabelFontSize(node.AsInt());
         } else if (key == BUS_LABEL_OFFSET_KEY) {
-            (*map_settings_)->SetBusLabelOffset(GetOffsetsFromNode(node));
+            map_settings_->SetBusLabelOffset(GetOffsetsFromNode(node));
         } else if (key == STOP_LABEL_FONT_SIZE_KEY) {
-            (*map_settings_)->SetStopLabelFontSize(node.AsInt());
+            map_settings_->SetStopLabelFontSize(node.AsInt());
         } else if (key == STOP_LABEL_OFFSET_KEY) {
-            (*map_settings_)->SetStopLabelOffset(GetOffsetsFromNode(node));
+            map_settings_->SetStopLabelOffset(GetOffsetsFromNode(node));
         } else if (key == UNDERLAYER_COLOR_KEY) {
-            (*map_settings_)->SetUnderlayerColor(GetColorFromNode(node));
+            map_settings_->SetUnderlayerColor(GetColorFromNode(node));
         } else if (key == UNDERLAYER_WIDTH_KEY) {
-            (*map_settings_)->SetUnderlayerWidth(node.AsDouble());
+            map_settings_->SetUnderlayerWidth(node.AsDouble());
         } else if (key == COLOR_PALETTE_KEY) {
             std::vector<svg::Color> colors(node.AsArray().size());
             std::transform(
@@ -338,7 +336,7 @@ class SetMapSettingsHandler : public RequestHandler {
                     return GetColorFromNode(node);
                 });
 
-            (*map_settings_)->SetColorPalette(std::move(colors));
+            map_settings_->SetColorPalette(std::move(colors));
         } else {
             throw std::logic_error("Unknown setting"s);
         }
@@ -380,22 +378,30 @@ class SetMapSettingsHandler : public RequestHandler {
 }  // namespace detail
 
 void ReadJSON(std::istream& input, std::ostream& output, TransportCatalogue& catalogue) {
+    // 1. read settings, then create map_renderer
+    // 2. add data
+    // 3. handle get requests
+
     const json::Document document = json::Load(input);
     const json::Node& json_node = document.GetRoot();
 
-    // handle map settings before creating map_renderer
+    // read map settings for creating map renderer
     renderer::MapSettings map_settings;
-    detail::SetMapSettingsHandler settings_h(map_settings);
-    detail::HandleRequests(json_node, {&settings_h});
+    detail::SetMapSettingsHandler settings_handler(&map_settings);
+    detail::HandleJSON(json_node, {&settings_handler});
 
-    // handle other requests
     route::renderer::MapRenderer map_renderer(std::move(map_settings));
-    detail::AddDataHandler add_h(catalogue);
-    detail::GetDataHandler get_h(output, catalogue, map_renderer);
 
-    // order is important: firstlly - add data, only then - get new information
-    std::vector<const detail::RequestHandler*> handlers{&add_h, &get_h};
-    detail::HandleRequests(json_node, handlers);
+    // create handler for communicating with catalouge and map renderer
+    route::RequestHandler request_handler(catalogue, map_renderer);
+
+    // create handlers for reading json-request
+    detail::AddDataJSONHandler add_data_handler(catalogue);
+    detail::GetDataJSONHandler get_data_handler(output, request_handler);
+
+    // order is important: firstly add data, then get info
+    std::vector<detail::JSONHandler*> handlers{&add_data_handler, &get_data_handler};
+    detail::HandleJSON(json_node, handlers);
 }
 
 }  // namespace io

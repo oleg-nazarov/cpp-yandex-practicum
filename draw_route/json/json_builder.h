@@ -21,77 +21,69 @@ enum class BuilderMethodType {
     VALUE,
 };
 
-class Context {
-   public:
-    Context(Builder& builder);
-
-   protected:
-    ~Context() = default;
-
-    Builder& builder_;
-};
-
-class ArrayContext;
-class DictContext;
-
-// ---------- ValueContext ----------
-
-class ValueContext : public Context {
-   public:
-    ValueContext(Builder& builder);
-
-    ArrayContext StartArray();
-    DictContext StartDict();
-};
-
-class ValueOfArrayContext : public ValueContext {
-   public:
-    ValueOfArrayContext(Builder& builder);
-
-    ArrayContext Value(Node node);
-};
-
-class ValueOfDictContext : public ValueContext {
-   public:
-    ValueOfDictContext(Builder& builder);
-
-    DictContext Value(Node node);
-};
-
-// ---------- ArrayContext ----------
-
-class ArrayContext : public ValueOfArrayContext {
-   public:
-    ArrayContext(Builder& builder);
-
-    Builder& EndArray();
-};
-
-// ---------- DictContext ----------
-
-class DictContext : public Context {
-   public:
-    DictContext(Builder& builder);
-
-    Builder& EndDict();
-
-    ValueOfDictContext Key(std::string key);
-};
-
 }  // namespace detail
 
 class Builder {
-    friend detail::ValueOfArrayContext;
-    friend detail::ValueOfDictContext;
+   private:
+    class Context {
+       public:
+        Context(Builder& builder);
+
+       protected:
+        ~Context() = default;
+
+        Builder& builder_;
+    };
+
+    class ArrayContext;
+    class DictContext;
+
+    class ValueContext : public Context {
+       public:
+        ValueContext(Builder& builder);
+
+        ArrayContext StartArray();
+        DictContext StartDict();
+    };
+
+    class ValueOfArrayContext : public ValueContext {
+       public:
+        ValueOfArrayContext(Builder& builder);
+
+        ArrayContext Value(Node node);
+    };
+
+    class ValueOfDictContext : public ValueContext {
+       public:
+        ValueOfDictContext(Builder& builder);
+
+        DictContext Value(Node node);
+    };
+
+    class ArrayContext : public ValueOfArrayContext {
+       public:
+        ArrayContext(Builder& builder);
+
+        Builder& EndArray();
+    };
+
+    class DictContext : public Context {
+       public:
+        DictContext(Builder& builder);
+
+        Builder& EndDict();
+
+        ValueOfDictContext Key(std::string key);
+    };
 
    public:
-    detail::ArrayContext StartArray();
+    ArrayContext StartArray();
     Builder& EndArray();
 
-    detail::DictContext StartDict();
+    DictContext StartDict();
     Builder& EndDict();
 
-    detail::ValueOfDictContext Key(std::string key);
+    ValueOfDictContext Key(std::string key);
 
     Builder& Value(Node value);
 
@@ -110,8 +102,8 @@ class Builder {
 
     void CheckCallCorrectnessOrThrow(const detail::BuilderMethodType& field_type) const;
 
-    detail::ArrayContext ArrayValue(Node value);
-    detail::DictContext DictValue(Node value);
+    ArrayContext ArrayValue(Node value);
+    DictContext DictValue(Node value);
 };
 
 }  // namespace json
