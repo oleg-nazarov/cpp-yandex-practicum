@@ -16,7 +16,7 @@ namespace route {
 struct Distance {
     std::string_view from;
     std::string_view to;
-    unsigned long long distance;
+    DistanceType distance;
 };
 
 class TransportCatalogue {
@@ -35,6 +35,8 @@ class TransportCatalogue {
 
     std::optional<BusInfo> GetBusInfo(std::string_view name) const;
 
+    std::optional<DistanceType> GetDistanceBetweenStops(std::string_view from, std::string_view to) const;
+
     void SetDistances(std::vector<Distance>&& stop_distances);
 
    private:
@@ -42,12 +44,12 @@ class TransportCatalogue {
     std::unordered_set<std::string> bus_names_;
     std::unordered_map<std::string_view, Stop> stops_;
     std::unordered_map<std::string_view, Bus> buses_;
-    std::unordered_map<std::string_view, std::unordered_map<std::string_view, unsigned long long>> stop_stop_distances_;
+    std::unordered_map<std::string_view, std::unordered_map<std::string_view, DistanceType>> stop_stop_distances_;
 
     BusInfo CalculateBusInfo(std::string_view name);
 
     double GetEuclideanDistance(const std::vector<std::string_view>& bus_stops) const;
-    unsigned long long GetRoadDistance(const std::vector<std::string_view>& bus_stops) const;
+    DistanceType GetRoadDistance(const std::vector<std::string_view>& bus_stops) const;
 
     template <typename T>
     std::string_view GetOneOriginalNameSV(std::string_view name_sv,

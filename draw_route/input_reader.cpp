@@ -158,7 +158,7 @@ void HandleAddStop(TransportCatalogue& catalogue, const Request& request) {
             distances_sv.begin(), distances_sv.end(),
             std::back_inserter(distances),
             [&request](const std::pair<std::string_view, std::string_view>& d_sv) {
-                unsigned long long distance = std::stoll(std::string(d_sv.second));
+                DistanceType distance = std::stoll(std::string(d_sv.second));
 
                 Distance d{request.object_name, d_sv.first, distance};
 

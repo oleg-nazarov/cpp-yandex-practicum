@@ -13,7 +13,9 @@
 #include "json/json_builder.h"
 #include "map_renderer.h"
 #include "request_handler.h"
+#include "router.h"
 #include "transport_catalogue.h"
+#include "transport_router.h"
 
 namespace route {
 namespace io {
@@ -124,7 +126,7 @@ class AddDataJSONHandler : public JSONHandler {
             Distance dist{
                 req_map.at(NAME_KEY).AsString(),
                 to_s,
-                static_cast<unsigned long long>(distance_node.AsDouble())};
+                static_cast<DistanceType>(distance_node.AsDouble())};
 
             distances.push_back(std::move(dist));
         }
@@ -157,6 +159,8 @@ class GetDataJSONHandler : public JSONHandler {
                 responses.push_back(GetStopInfoResponse(req_node));
             } else if (request_type == MAP_TYPE) {
                 responses.push_back(GetMapResponse(req_node));
+            } else if (request_type == ROUTE_TYPE) {
+                responses.push_back(GetRouteInfoResponse(req_node));
             } else {
                 throw std::logic_error("Unknown request type"s);
             }
@@ -179,21 +183,31 @@ class GetDataJSONHandler : public JSONHandler {
 
     inline static const std::string REQUEST_TYPE = "stat_requests";
 
+    inline static const std::string BUS_KEY = "bus";
     inline static const std::string BUSES_KEY = "buses";
     inline static const std::string CURVATURE_KEY = "curvature";
     inline static const std::string ERROR_MESSAGE_KEY = "error_message";
+    inline static const std::string FROM_KEY = "from";
     inline static const std::string ID_KEY = "id";
+    inline static const std::string ITEMS_KEY = "items";
     inline static const std::string MAP_KEY = "map";
     inline static const std::string NAME_KEY = "name";
     inline static const std::string REQUEST_ID_KEY = "request_id";
     inline static const std::string ROUTE_LENGTH_KEY = "route_length";
+    inline static const std::string SPAN_COUNT_KEY = "span_count";
     inline static const std::string STOP_COUNT_KEY = "stop_count";
+    inline static const std::string STOP_NAME_KEY = "stop_name";
+    inline static const std::string TIME_KEY = "time";
+    inline static const std::string TO_KEY = "to";
+    inline static const std::string TOTAL_TIME_KEY = "total_time";
     inline static const std::string TYPE_KEY = "type";
     inline static const std::string UNIQUE_STOP_COUNT_KEY = "unique_stop_count";
 
     inline static const std::string BUS_TYPE = "Bus";
     inline static const std::string MAP_TYPE = "Map";
+    inline static const std::string ROUTE_TYPE = "Route";
     inline static const std::string STOP_TYPE = "Stop";
+    inline static const std::string WAIT_TYPE = "Wait";
 
     inline static const std::string NOT_FOUND_S = "not found";
 
@@ -262,6 +276,58 @@ class GetDataJSONHandler : public JSONHandler {
             .Value(map_svg_s)
             .EndDict()
             .Build();
+    }
+
+    json::Node GetRouteInfoResponse(const json::Node& node) {
+        const json::Dict& request = node.AsDict();
+
+        std::optional<typename TransportRouter::RouteInfo> info = request_handler_.GetRouteInfo(
+            request.at(FROM_KEY).AsString(), request.at(TO_KEY).AsString());
+
+        // filling in response
+        json::Builder json_builder = json::Builder{};
+        json_builder
+            .StartDict()
+            .Key(REQUEST_ID_KEY)
+            .Value(request.at(ID_KEY));
+
+        if (!info.has_value()) {
+            return json_builder
+                .Key(ERROR_MESSAGE_KEY)
+                .Value(NOT_FOUND_S)
+                .EndDict()
+                .Build();
+        }
+
+        json_builder.Key(TOTAL_TIME_KEY).Value(info->total_weight);
+
+        json_builder.Key(ITEMS_KEY).StartArray();
+        for (const TransportRouter::Edge& edge : info->edges) {
+            json_builder
+                .StartDict()
+                .Key(TYPE_KEY)
+                .Value(WAIT_TYPE)
+                .Key(STOP_NAME_KEY)
+                .Value(std::string(edge.from))
+                .Key(TIME_KEY)
+                .Value(info->bus_wait_time)
+                .EndDict();
+
+            json_builder
+                .StartDict()
+                .Key(TYPE_KEY)
+                .Value(BUS_TYPE)
+                .Key(BUS_KEY)
+                .Value(std::string(edge.bus_name))
+                .Key(SPAN_COUNT_KEY)
+                .Value(edge.span_count)
+                .Key(TIME_KEY)
+                .Value(edge.weight - info->bus_wait_time)
+                .EndDict();
+        }
+        json_builder.EndArray();
+
+        return json_builder.EndDict().Build();
     }
 };
 
@@ -375,6 +441,30 @@ class SetMapSettingsHandler : public JSONHandler {
     }
 };
 
+class SetRoutingSettingsHandler : public JSONHandler {
+   public:
+    SetRoutingSettingsHandler(RoutingSettings& routing_settings) : routing_settings_(routing_settings) {}
+
+    void Handle(const json::Node& node) override {
+        const json::Dict& settings_map = node.AsDict();
+
+        routing_settings_.bus_wait_time = settings_map.at(BUS_WAIT_TIME_KEY).AsInt();
+        routing_settings_.bus_velocity = settings_map.at(BUS_VELOCITY_KEY).AsDouble();
+    }
+
+    const std::string& GetRequestType() const override {
+        return REQUEST_TYPE;
+    }
+
+   private:
+    RoutingSettings& routing_settings_;
+
+    inline static const std::string REQUEST_TYPE = "routing_settings";
+
+    inline static const std::string BUS_WAIT_TIME_KEY = "bus_wait_time";
+    inline static const std::string BUS_VELOCITY_KEY = "bus_velocity";
+};
+
 }  // namespace detail
 
 void ReadJSON(std::istream& input, std::ostream& output, TransportCatalogue& catalogue) {
@@ -387,20 +477,26 @@ void ReadJSON(std::istream& input, std::ostream& output, TransportCatalogue& cat
 
     // read map settings for creating map renderer
     renderer::MapSettings map_settings;
-    detail::SetMapSettingsHandler settings_handler(&map_settings);
-    detail::HandleJSON(json_node, {&settings_handler});
+    detail::SetMapSettingsHandler map_settings_handler(&map_settings);
+    detail::HandleJSON(json_node, {&map_settings_handler});
 
     route::renderer::MapRenderer map_renderer(std::move(map_settings));
 
-    // create handler for communicating with catalouge and map renderer
-    route::RequestHandler request_handler(catalogue, map_renderer);
+    // read routing settings
+    RoutingSettings routing_settings;
+    detail::SetRoutingSettingsHandler routing_settings_handler(routing_settings);
+    detail::HandleJSON(json_node, {&routing_settings_handler});
 
-    // create handlers for reading json-request
+    // order is important: firstly add data, then create transport router, then get info
     detail::AddDataJSONHandler add_data_handler(catalogue);
+    detail::HandleJSON(json_node, {&add_data_handler});
+
+    TransportRouter transport_router{catalogue, std::move(routing_settings)};
+
+    route::RequestHandler request_handler(catalogue, map_renderer, transport_router);
     detail::GetDataJSONHandler get_data_handler(output, request_handler);
 
-    // order is important: firstly add data, then get info
-    std::vector<detail::JSONHandler*> handlers{&add_data_handler, &get_data_handler};
+    std::vector<detail::JSONHandler*> handlers{&get_data_handler};
     detail::HandleJSON(json_node, handlers);
 }
 

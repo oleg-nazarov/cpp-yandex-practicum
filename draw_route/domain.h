@@ -8,14 +8,16 @@
 
 namespace route {
 
+using DistanceType = unsigned long long;
+
 struct BusInfo {
     BusInfo();
-    BusInfo(size_t s_c, size_t u_s_c, double e_d, unsigned long long r_d);
+    BusInfo(size_t s_c, size_t u_s_c, double e_d, DistanceType r_d);
 
     size_t stops_count;
     size_t unique_stops_count;
     double euclidean_distance;
-    unsigned long long road_distance;
+    DistanceType road_distance;
     double curvature;
 };
 

@@ -78,6 +78,15 @@ std::optional<BusInfo> TransportCatalogue::GetBusInfo(std::string_view name) con
     return GetBus(name).info;
 }
 
+std::optional<DistanceType> TransportCatalogue::GetDistanceBetweenStops(std::string_view from, std::string_view to) const {
+    using namespace std::literals::string_literals;
+    if (stop_stop_distances_.count(from) == 0 || stop_stop_distances_.at(from).count(to) == 0) {
+        return std::nullopt;
+    }
+
+    return stop_stop_distances_.at(from).at(to);
+}
+
 std::optional<const std::set<std::string_view>*> TransportCatalogue::GetBusesByStop(std::string_view stop) const {
     if (stops_.count(stop) == 0u) {
         return std::nullopt;
@@ -108,7 +117,7 @@ BusInfo TransportCatalogue::CalculateBusInfo(std::string_view name) {
     const std::vector<std::string_view> bus_stops = buses_.at(name).stops;
 
     double euclidean_distance = GetEuclideanDistance(bus_stops);
-    unsigned long long road_distance = GetRoadDistance(bus_stops);
+    DistanceType road_distance = GetRoadDistance(bus_stops);
 
     BusInfo bus_info{bus_stops.size(), GetBusUniqueStopsCount(name), euclidean_distance, road_distance};
 
@@ -128,8 +137,8 @@ double TransportCatalogue::GetEuclideanDistance(const std::vector<std::string_vi
     return total_distance;
 }
 
-unsigned long long TransportCatalogue::GetRoadDistance(const std::vector<std::string_view>& bus_stops) const {
-    unsigned long long total_distance = 0;
+DistanceType TransportCatalogue::GetRoadDistance(const std::vector<std::string_view>& bus_stops) const {
+    DistanceType total_distance = 0;
 
     for (size_t i = 1; i < bus_stops.size(); ++i) {
         total_distance += stop_stop_distances_.at(bus_stops[i - 1]).at(bus_stops[i]);
