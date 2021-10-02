@@ -1,0 +1,2 @@
+---
+Checks:          '*,-llvm-*,-llvmlibc-*,-google-build-using-namespace,-modernize-use-trailing-return-type'
