@@ -96,6 +96,7 @@ class Vector {
             Swap(other);
         }
     }
+
     Vector(const Vector& other) : data_(other.size_), size_(other.size_) {
         if (this != &other) {
             std::uninitialized_copy_n(other.data_.GetAddress(), other.size_, data_.GetAddress());
@@ -113,17 +114,18 @@ class Vector {
 
         return *this;
     }
+
     Vector& operator=(const Vector& rhs) {
         if (this != &rhs) {
             if (rhs.size_ > data_.Capacity()) {
                 Vector<T> rhs_copy(rhs);
                 Swap(rhs_copy);
             } else {
+                std::copy(rhs.data_.GetAddress(), rhs.data_.GetAddress() + std::min(size_, rhs.size_), data_.GetAddress());
+
                 if (size_ < rhs.size_) {
-                    std::copy(rhs.data_.GetAddress(), rhs.data_.GetAddress() + size_, data_.GetAddress());
                     std::uninitialized_copy_n(rhs.data_.GetAddress() + size_, rhs.size_ - size_, data_.GetAddress() + size_);
                 } else {
-                    std::copy(rhs.data_.GetAddress(), rhs.data_.GetAddress() + rhs.size_, data_.GetAddress());
                     std::destroy_n(data_.GetAddress() + rhs.size_, size_ - rhs.size_);
                 }
 
@@ -154,9 +156,7 @@ class Vector {
     }
 
     void PopBack() {
-        if (size_ == 0u) {
-            return;
-        }
+        assert(size_ > 0u);
 
         std::destroy_n(data_.GetAddress() + (size_ - 1u), 1);
         --size_;
@@ -223,6 +223,7 @@ class Vector {
     iterator Insert(const_iterator pos, const T& value) {
         return Emplace(pos, value);
     }
+
     iterator Insert(const_iterator pos, T&& value) {
         return Emplace(pos, std::move(value));
     }
