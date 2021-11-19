@@ -1,5 +1,7 @@
 #include <cassert>
+#include <iostream>
 #include <memory>
+#include <string>
 
 #include "../optional.h"
 
@@ -286,6 +288,8 @@ void TestRefQualifiedMethodOverloading() {
 }
 
 int main() {
+    std::cout << "Start..." << std::endl;
+
     try {
         TestInitialization();
         TestAssignment();
@@ -297,4 +301,6 @@ int main() {
     } catch (...) {
         assert(false);
     }
+
+    std::cout << "Done!" << std::endl;
 }

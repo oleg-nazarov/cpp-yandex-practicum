@@ -210,7 +210,7 @@ void Benchmark() {
     std::stringstream strm;
     json::Print(Document{arr}, strm);
     const auto doc = json::Load(strm);
-    assert(doc.GetRoot() == arr);
+    assert(doc.GetRoot().AsArray() == arr);
     const auto duration = std::chrono::steady_clock::now() - start;
     std::cout << "Benchmark: "s << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << "ms"sv << std::endl;
 }

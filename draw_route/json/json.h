@@ -17,7 +17,7 @@ class ParsingError : public std::runtime_error {
     using runtime_error::runtime_error;
 };
 
-class Node final : private std::variant<std::nullptr_t, Array, Dict, bool, int, double, std::string> {
+class Node final : public std::variant<std::nullptr_t, Array, Dict, bool, int, double, std::string> {
    public:
     using variant::variant;
 
