@@ -1,0 +1,37 @@
+syntax = "proto2";
+
+import "map_renderer.proto";
+import "transport_router.proto";
+
+package route.serialize;
+
+message Stop {
+    required double latitude = 1;
+    required double longitude = 2;
+    repeated uint32 buses = 3;
+}
+
+message Bus {
+    repeated uint32 stops = 1;
+    required bool is_roundtrip = 2;
+}
+
+message DestinationDistance {
+    map<uint32, uint64> distance = 1;
+}
+
+message Settings {
+    required RoutingSettings routing = 1;
+    required RenderSettings rendering = 2;
+}
+
+message TransportCatalogue {
+    map<uint32, string> id_to_stop_name = 1;
+    map<uint32, string> id_to_bus_name = 2;
+
+    map<uint32, Stop> stops = 3;
+    map<uint32, Bus> buses = 4;
+    map<uint32, DestinationDistance> stop_stop_distance = 5;
+
+    required Settings settings = 6;
+}

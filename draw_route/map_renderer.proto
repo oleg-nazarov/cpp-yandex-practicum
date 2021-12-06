@@ -1,0 +1,28 @@
+syntax = "proto2";
+
+package route.serialize;
+
+message ColorArray {
+    repeated uint32 rgb = 1;
+    optional double opacity = 2;
+}
+
+message Color {
+    optional string color_string = 1;
+    optional ColorArray color_array = 2;
+}
+
+message RenderSettings {
+    required double width = 1;
+    required double height = 2;
+    required double padding = 3;
+    required double stop_radius = 4;
+    required double line_width = 5;
+    required int32 bus_label_font_size = 6;
+    repeated double bus_label_offset = 7;
+    required int32 stop_label_font_size = 8;
+    repeated double stop_label_offset = 9;
+    required Color underlayer_color = 10;
+    required double underlayer_width = 11;
+    repeated Color color_palette = 12;  
+}

@@ -1,5 +1,6 @@
 #include "json_reader.h"
 
+#include <filesystem>
 #include <iterator>
 #include <optional>
 #include <queue>
@@ -14,6 +15,7 @@
 #include "map_renderer.h"
 #include "request_handler.h"
 #include "router.h"
+#include "serialization.h"
 #include "transport_catalogue.h"
 #include "transport_router.h"
 
@@ -40,8 +42,10 @@ void HandleJSON(const json::Node& json_node, const std::vector<JSONHandler*>& ha
     const json::Dict& json_map = json_node.AsDict();
 
     for (JSONHandler* handler : handlers) {
-        const json::Node& request_node = json_map.at(handler->GetRequestType());
-        handler->Handle(request_node);
+        if (json_map.count(handler->GetRequestType())) {
+            const json::Node& request_node = json_map.at(handler->GetRequestType());
+            handler->Handle(request_node);
+        }
     }
 }
 
@@ -331,6 +335,30 @@ class GetDataJSONHandler : public JSONHandler {
     }
 };
 
+// ---------- SetSerializationSettingsHandler ----------
+
+class SetSerializationSettingsHandler : public JSONHandler {
+   public:
+    SetSerializationSettingsHandler(SerializationSettings& settings) : settings_(settings) {}
+
+    void Handle(const json::Node& node) override {
+        using namespace std::literals::string_literals;
+
+        const json::Dict& settings_node = node.AsDict();
+        settings_.db_path = settings_node.at(FILE_KEY).AsString();
+    }
+
+    const std::string& GetRequestType() const override {
+        return REQUEST_TYPE;
+    }
+
+   private:
+    SerializationSettings& settings_;
+
+    inline static const std::string REQUEST_TYPE = "serialization_settings";
+    inline static const std::string FILE_KEY = "file";
+};
+
 // ---------- SetMapSettingsHandler ----------
 
 class SetMapSettingsHandler : public JSONHandler {
@@ -495,9 +523,61 @@ void ReadJSON(std::istream& input, std::ostream& output, TransportCatalogue& cat
 
     route::RequestHandler request_handler(catalogue, map_renderer, transport_router);
     detail::GetDataJSONHandler get_data_handler(output, request_handler);
+    detail::HandleJSON(json_node, {&get_data_handler});
+}
 
-    std::vector<detail::JSONHandler*> handlers{&get_data_handler};
-    detail::HandleJSON(json_node, handlers);
+void ReadMakeBaseJSON(std::istream& input) {
+    // read json
+    const json::Document document = json::Load(input);
+    const json::Node& json_node = document.GetRoot();
+
+    // read settings
+
+    SerializationSettings serialization_settings;
+    detail::SetSerializationSettingsHandler serialization_settings_handler(serialization_settings);
+    detail::HandleJSON(json_node, {&serialization_settings_handler});
+
+    RoutingSettings routing_settings;
+    detail::SetRoutingSettingsHandler routing_settings_handler(routing_settings);
+    detail::HandleJSON(json_node, {&routing_settings_handler});
+
+    renderer::MapSettings map_settings;
+    detail::SetMapSettingsHandler map_settings_handler(&map_settings);
+    detail::HandleJSON(json_node, {&map_settings_handler});
+
+    // add data to transport catalogue
+    route::TransportCatalogue catalogue;
+    detail::AddDataJSONHandler add_data_handler(catalogue);
+    detail::HandleJSON(json_node, {&add_data_handler});
+
+    // serialize data
+
+    SerializeTCatalogue(catalogue, routing_settings, map_settings, serialization_settings);
+}
+
+void ReadProcessRequestsJSON(std::istream& input, std::ostream& output) {
+    // read json
+    const json::Document document = json::Load(input);
+    const json::Node& json_node = document.GetRoot();
+
+    // read serialization settings
+    SerializationSettings serialization_settings;
+    detail::SetSerializationSettingsHandler serialization_settings_handler(serialization_settings);
+    detail::HandleJSON(json_node, {&serialization_settings_handler});
+
+    // deserialize catalogue, routing and renderer settings
+    TransportCatalogue catalogue;
+    RoutingSettings routing_settings;
+    renderer::MapSettings map_settings;
+    DeserializeTCatalogue(catalogue, routing_settings, map_settings, serialization_settings);
+
+    TransportRouter transport_router{catalogue, std::move(routing_settings)};
+    route::renderer::MapRenderer map_renderer(std::move(map_settings));
+
+    // get data
+    route::RequestHandler request_handler(catalogue, map_renderer, transport_router);
+    detail::GetDataJSONHandler get_data_handler(output, request_handler);
+    detail::HandleJSON(json_node, {&get_data_handler});
 }
 
 }  // namespace io

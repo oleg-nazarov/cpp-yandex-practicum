@@ -70,6 +70,10 @@ const std::unordered_map<std::string_view, Stop>& TransportCatalogue::GetAllStop
     return stops_;
 }
 
+const std::unordered_map<std::string_view, std::unordered_map<std::string_view, DistanceType>>& TransportCatalogue::GetAllDistances() const {
+    return stop_stop_distances_;
+}
+
 std::optional<BusInfo> TransportCatalogue::GetBusInfo(std::string_view name) const {
     if (buses_.count(name) == 0u) {
         return std::nullopt;

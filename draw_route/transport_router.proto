@@ -1,0 +1,8 @@
+syntax = "proto2";
+
+package route.serialize;
+
+message RoutingSettings {
+    required int32 bus_wait_time = 1;
+    required double bus_velocity = 2;
+}
