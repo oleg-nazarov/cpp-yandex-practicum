@@ -1,5 +1,7 @@
 #pragma once
 
+#include <transport_catalogue.pb.h>
+
 #include <filesystem>
 
 #include "map_renderer.h"
@@ -16,7 +18,7 @@ struct SerializationSettings {
 void SerializeTCatalogue(const TransportCatalogue& catalogue, const RoutingSettings& routing_settings,
                          const renderer::MapSettings& map_settings, const SerializationSettings& serialization_settings);
 void DeserializeTCatalogue(TransportCatalogue& catalogue, RoutingSettings& routing_settings,
-                           renderer::MapSettings& map_settings, const SerializationSettings& serialization_settings);
+                           renderer::MapSettings& map_settings, const route::serialize::TransportCatalogue& deserialized_data);
 
 }  // namespace io
 }  // namespace route

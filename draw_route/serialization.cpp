@@ -19,11 +19,95 @@ namespace io {
 
 namespace detail {
 
-route::serialize::Color GetSerColor(const svg::Color& color) {
-    route::serialize::Color ser_color;
+struct NameToId {
+    const std::unordered_map<std::string_view, uint32_t> stops;
+    const std::unordered_map<std::string_view, uint32_t> buses;
+};
+
+// return helper that is used to store next references to the names as ids
+const NameToId SerializeStopAndBusNames(route::serialize::TransportCatalogue& proto_catalogue,
+                                        const TransportCatalogue& catalogue) {
+    std::unordered_map<std::string_view, uint32_t> stop_name_to_id;
+    std::unordered_map<std::string_view, uint32_t> bus_name_to_id;
+
+    // serialize stop names
+    auto& proto_id_to_stop_name = *proto_catalogue.mutable_id_to_stop_name();
+    for (const auto& [stop_name_sv, _] : catalogue.GetAllStops()) {
+        uint32_t id = proto_id_to_stop_name.size();
+
+        proto_id_to_stop_name[id] = std::string(stop_name_sv);
+        stop_name_to_id[stop_name_sv] = id;
+    }
+
+    // serialize bus names
+    auto& proto_id_to_bus_name = *proto_catalogue.mutable_id_to_bus_name();
+    for (const Bus* bus : catalogue.GetAllBuses()) {
+        uint32_t id = proto_id_to_bus_name.size();
+
+        proto_id_to_bus_name[id] = std::string(bus->name);
+        bus_name_to_id[bus->name] = id;
+    }
+
+    const NameToId name_to_id{std::move(stop_name_to_id), std::move(bus_name_to_id)};
+    return name_to_id;
+}
+
+route::serialize::Stop GetProtoStop(std::string_view stop_name_sv, const Stop& stop, const NameToId& name_to_id) {
+    route::serialize::Stop proto_stop;
+
+    uint32_t id = name_to_id.stops.at(stop_name_sv);
+    proto_stop.set_stop_name_id(id);
+
+    proto_stop.mutable_coordinates()->set_latitude(stop.coordinates.lat);
+    proto_stop.mutable_coordinates()->set_longitude(stop.coordinates.lng);
+
+    for (std::string_view bus_sv : stop.buses) {
+        proto_stop.add_buses(name_to_id.buses.at(bus_sv));
+    }
+
+    return proto_stop;
+}
+
+route::serialize::Bus GetProtoBus(const Bus& bus, const NameToId& name_to_id) {
+    route::serialize::Bus proto_bus;
+
+    uint32_t id = name_to_id.buses.at(bus.name);
+    proto_bus.set_bus_name_id(id);
+
+    // we store stops in transport catalogue in a way that represents a roundtrip way
+    // (no matter what "is_roundtrip"-flag actually is);
+    // so if the flag is "false", we should serialize only half+1 of the stops (one way stops)
+    auto it_end = bus.is_roundtrip ? bus.stops.end() : bus.stops.begin() + (bus.stops.size() / 2) + 1;
+    for (auto it = bus.stops.begin(); it != it_end; ++it) {
+        proto_bus.add_stops(name_to_id.stops.at(*it));
+    }
+
+    proto_bus.set_is_roundtrip(bus.is_roundtrip);
+
+    return proto_bus;
+}
+
+route::serialize::StopToStopDistance GetProtoStopToStopDistance(std::string_view from_sv, std::string_view to_sv,
+                                                                DistanceType distance, const NameToId& name_to_id) {
+    route::serialize::StopToStopDistance proto_stop_to_stop_dist;
+
+    uint32_t from_id = name_to_id.stops.at(from_sv);
+    uint32_t to_id = name_to_id.stops.at(to_sv);
+
+    proto_stop_to_stop_dist.set_from_id(from_id);
+    proto_stop_to_stop_dist.set_to_id(to_id);
+    proto_stop_to_stop_dist.set_distance(distance);
+
+    return proto_stop_to_stop_dist;
+}
+
+// map settings
+
+route::serialize::Color GetProtoColor(const svg::Color& color) {
+    route::serialize::Color proto_color;
 
     if (std::holds_alternative<std::string>(color)) {
-        ser_color.set_color_string(std::get<std::string>(color));
+        proto_color.set_color_string(std::get<std::string>(color));
     } else if (std::holds_alternative<svg::Rgb>(color)) {
         svg::Rgb rgb_color = std::get<svg::Rgb>(color);
 
@@ -32,7 +116,7 @@ route::serialize::Color GetSerColor(const svg::Color& color) {
         color_array.add_rgb(rgb_color.green);
         color_array.add_rgb(rgb_color.blue);
 
-        *ser_color.mutable_color_array() = std::move(color_array);
+        *proto_color.mutable_color_array() = std::move(color_array);
     } else if (std::holds_alternative<svg::Rgba>(color)) {
         svg::Rgba rgba_color = std::get<svg::Rgba>(color);
 
@@ -42,18 +126,18 @@ route::serialize::Color GetSerColor(const svg::Color& color) {
         color_array.add_rgb(rgba_color.blue);
         color_array.set_opacity(rgba_color.opacity);
 
-        *ser_color.mutable_color_array() = std::move(color_array);
+        *proto_color.mutable_color_array() = std::move(color_array);
     }
 
-    return ser_color;
+    return proto_color;
 }
 
-svg::Color GetSvgColor(const route::serialize::Color& ser_color) {
-    if (ser_color.has_color_string()) {
-        svg::Color color{ser_color.color_string()};
+svg::Color GetSvgColor(const route::serialize::Color& proto_color) {
+    if (proto_color.has_color_string()) {
+        svg::Color color{proto_color.color_string()};
         return color;
-    } else if (ser_color.has_color_array()) {
-        const auto& color_array = ser_color.color_array();
+    } else if (proto_color.has_color_array()) {
+        const auto& color_array = proto_color.color_array();
 
         if (color_array.has_opacity()) {
             svg::Rgba rgba{
@@ -74,37 +158,35 @@ svg::Color GetSvgColor(const route::serialize::Color& ser_color) {
     return {};
 }
 
-// map settings
+route::serialize::RenderSettings GetProtoMapSettings(const renderer::MapSettings& map_settings) {
+    route::serialize::RenderSettings proto_renderer_settings;
 
-route::serialize::RenderSettings GetSerializedMapSettings(const renderer::MapSettings& map_settings) {
-    route::serialize::RenderSettings ser_renderer_settings;
+    proto_renderer_settings.set_width(map_settings.GetWidth());
+    proto_renderer_settings.set_height(map_settings.GetHeight());
+    proto_renderer_settings.set_padding(map_settings.GetPadding());
+    proto_renderer_settings.set_stop_radius(map_settings.GetStopRadius());
+    proto_renderer_settings.set_line_width(map_settings.GetLineWidth());
 
-    ser_renderer_settings.set_width(map_settings.GetWidth());
-    ser_renderer_settings.set_height(map_settings.GetHeight());
-    ser_renderer_settings.set_padding(map_settings.GetPadding());
-    ser_renderer_settings.set_stop_radius(map_settings.GetStopRadius());
-    ser_renderer_settings.set_line_width(map_settings.GetLineWidth());
-
-    ser_renderer_settings.set_bus_label_font_size(map_settings.GetBusLabelFontSize());
+    proto_renderer_settings.set_bus_label_font_size(map_settings.GetBusLabelFontSize());
     for (double bus_label_offset : map_settings.GetBusLabelOffset()) {
-        ser_renderer_settings.add_bus_label_offset(bus_label_offset);
+        proto_renderer_settings.add_bus_label_offset(bus_label_offset);
     }
 
-    ser_renderer_settings.set_stop_label_font_size(map_settings.GetStopLabelFontSize());
+    proto_renderer_settings.set_stop_label_font_size(map_settings.GetStopLabelFontSize());
     for (double stop_label_offset : map_settings.GetStopLabelOffset()) {
-        ser_renderer_settings.add_stop_label_offset(stop_label_offset);
+        proto_renderer_settings.add_stop_label_offset(stop_label_offset);
     }
 
     svg::Color underlayer_color = map_settings.GetUnderlayerColor();
-    *ser_renderer_settings.mutable_underlayer_color() = GetSerColor(underlayer_color);
+    *proto_renderer_settings.mutable_underlayer_color() = GetProtoColor(underlayer_color);
 
-    ser_renderer_settings.set_underlayer_width(map_settings.GetUnderlayerWidth());
+    proto_renderer_settings.set_underlayer_width(map_settings.GetUnderlayerWidth());
 
     for (const svg::Color& color_palette : map_settings.GetColorPalette()) {
-        *ser_renderer_settings.add_color_palette() = GetSerColor(color_palette);
+        *proto_renderer_settings.add_color_palette() = GetProtoColor(color_palette);
     }
 
-    return ser_renderer_settings;
+    return proto_renderer_settings;
 }
 
 void DeserializeMapSettings(renderer::MapSettings& renderer_settings, const route::serialize::RenderSettings& deserialized_settings) {
@@ -115,27 +197,27 @@ void DeserializeMapSettings(renderer::MapSettings& renderer_settings, const rout
     renderer_settings.SetLineWidth(deserialized_settings.line_width());
     renderer_settings.SetBusLabelFontSize(deserialized_settings.bus_label_font_size());
 
-    std::vector<double> bl_offsets;
-    for (double bus_label_offset : deserialized_settings.bus_label_offset()) {
-        bl_offsets.push_back(bus_label_offset);
+    std::vector<double> bus_label_offsets;
+    for (double offset : deserialized_settings.bus_label_offset()) {
+        bus_label_offsets.push_back(offset);
     }
-    renderer_settings.SetBusLabelOffset(std::move(bl_offsets));
+    renderer_settings.SetBusLabelOffset(std::move(bus_label_offsets));
 
     renderer_settings.SetStopLabelFontSize(deserialized_settings.stop_label_font_size());
 
-    std::vector<double> sl_offsets;
-    for (double stop_label_offset : deserialized_settings.stop_label_offset()) {
-        sl_offsets.push_back(stop_label_offset);
+    std::vector<double> stop_label_offsets;
+    for (double offset : deserialized_settings.stop_label_offset()) {
+        stop_label_offsets.push_back(offset);
     }
-    renderer_settings.SetStopLabelOffset(std::move(sl_offsets));
+    renderer_settings.SetStopLabelOffset(std::move(stop_label_offsets));
 
     renderer_settings.SetUnderlayerColor(detail::GetSvgColor(deserialized_settings.underlayer_color()));
 
     renderer_settings.SetUnderlayerWidth(deserialized_settings.underlayer_width());
 
     std::vector<svg::Color> color_palette;
-    for (const route::serialize::Color& ser_color : deserialized_settings.color_palette()) {
-        svg::Color color = GetSvgColor(ser_color);
+    for (const route::serialize::Color& proto_color : deserialized_settings.color_palette()) {
+        svg::Color color = GetSvgColor(proto_color);
         color_palette.push_back(std::move(color));
     }
     renderer_settings.SetColorPalette(std::move(color_palette));
@@ -143,18 +225,49 @@ void DeserializeMapSettings(renderer::MapSettings& renderer_settings, const rout
 
 // routing settings
 
-route::serialize::RoutingSettings GetSerializedRoutingSettings(const RoutingSettings& routing_settings) {
-    route::serialize::RoutingSettings ser_settings;
+route::serialize::RoutingSettings GetProtoRoutingSettings(const RoutingSettings& routing_settings) {
+    route::serialize::RoutingSettings proto_settings;
 
-    ser_settings.set_bus_wait_time(routing_settings.bus_wait_time);
-    ser_settings.set_bus_velocity(routing_settings.bus_velocity);
+    proto_settings.set_bus_wait_time(routing_settings.bus_wait_time);
+    proto_settings.set_bus_velocity(routing_settings.bus_velocity);
 
-    return ser_settings;
+    return proto_settings;
 }
 
 void DeserializeRoutingSettings(RoutingSettings& routing_settings, const route::serialize::RoutingSettings& deserialized_settings) {
     routing_settings.bus_wait_time = deserialized_settings.bus_wait_time();
     routing_settings.bus_velocity = deserialized_settings.bus_velocity();
+}
+
+route::serialize::TransportCatalogue GetProtoTCatalogue(const TransportCatalogue& catalogue, const RoutingSettings& routing_settings,
+                                                        const renderer::MapSettings& map_settings) {
+    route::serialize::TransportCatalogue proto_catalogue;
+
+    // serialize all bus and stop names and get helper that is used to store next references of the names as ids
+    const NameToId name_to_id = SerializeStopAndBusNames(proto_catalogue, catalogue);
+
+    // serialize stops info
+    for (const auto& [stop_name_sv, stop] : catalogue.GetAllStops()) {
+        *proto_catalogue.add_stops() = GetProtoStop(stop_name_sv, stop, name_to_id);
+    }
+
+    // serialize buses info
+    for (const Bus* bus : catalogue.GetAllBuses()) {
+        *proto_catalogue.add_buses() = GetProtoBus(*bus, name_to_id);
+    }
+
+    // serialize distances between stops
+    for (const auto& [from_sv, destination] : catalogue.GetAllDistances()) {
+        for (const auto& [to_sv, distance] : destination) {
+            *proto_catalogue.add_stop_stop_distances() = GetProtoStopToStopDistance(from_sv, to_sv, distance, name_to_id);
+        }
+    }
+
+    // serialize routing and render settings
+    *proto_catalogue.mutable_routing_settings() = GetProtoRoutingSettings(routing_settings);
+    *proto_catalogue.mutable_render_settings() = GetProtoMapSettings(map_settings);
+
+    return proto_catalogue;
 }
 
 }  // namespace detail
@@ -165,146 +278,49 @@ void SerializeTCatalogue(const TransportCatalogue& catalogue, const RoutingSetti
                          const renderer::MapSettings& map_settings, const SerializationSettings& serialization_settings) {
     std::ofstream output(serialization_settings.db_path, std::ios::binary);
 
-    route::serialize::TransportCatalogue ser_catalogue;
+    route::serialize::TransportCatalogue proto_catalogue = detail::GetProtoTCatalogue(catalogue, routing_settings, map_settings);
 
-    // we create these two structures (only for local purposes) for not having in .proto string
-    // duplicates and storing uint32_t
-    std::unordered_map<std::string_view, uint32_t> stop_name_to_id;
-    std::unordered_map<std::string_view, uint32_t> bus_name_to_id;
-
-    // serialize stop names
-    auto& ser_id_to_stop_name = *ser_catalogue.mutable_id_to_stop_name();
-    const std::unordered_map<std::string_view, Stop>& stops = catalogue.GetAllStops();
-    for (const auto& [stop_name_sv, _] : stops) {
-        uint32_t id = ser_id_to_stop_name.size();
-
-        ser_id_to_stop_name[id] = std::string(stop_name_sv);
-        stop_name_to_id[stop_name_sv] = id;
-    }
-
-    // serialize bus names
-    auto& ser_id_to_bus_name = *ser_catalogue.mutable_id_to_bus_name();
-    const std::vector<const Bus*> buses = catalogue.GetAllBuses();
-    for (const Bus* bus : buses) {
-        uint32_t id = ser_id_to_bus_name.size();
-
-        ser_id_to_bus_name[id] = std::string(bus->name);
-        bus_name_to_id[bus->name] = id;
-    }
-
-    // after we have ids of all stops and buses (stop_name_to_id and bus_name_to_id),
-    // we can finish serializing other data
-
-    // serialize stops info
-    auto& ser_stops = *ser_catalogue.mutable_stops();
-    for (const auto& [stop_name_sv, stop] : stops) {
-        uint32_t id = stop_name_to_id[stop_name_sv];
-
-        route::serialize::Stop ser_stop;
-        ser_stop.set_latitude(stop.coordinates.lat);
-        ser_stop.set_longitude(stop.coordinates.lng);
-
-        for (std::string_view bus_sv : stop.buses) {
-            ser_stop.add_buses(bus_name_to_id[bus_sv]);
-        }
-
-        ser_stops[id] = std::move(ser_stop);
-    }
-
-    // serialize buses info
-    auto& ser_buses = *ser_catalogue.mutable_buses();
-    for (const Bus* bus : buses) {
-        uint32_t id = bus_name_to_id[bus->name];
-
-        route::serialize::Bus ser_bus;
-
-        // we store stops in transport catalogue in a way that represents a roundtrip way
-        // (no matter what "is_roundtrip"-flag actually is);
-        // so if the flag is "false", we should serialize only half+1 of the stops (one way stops)
-        auto it_end = bus->is_roundtrip ? bus->stops.end() : bus->stops.begin() + (bus->stops.size() / 2) + 1;
-        for (auto it = bus->stops.begin(); it != it_end; ++it) {
-            ser_bus.add_stops(stop_name_to_id[*it]);
-        }
-
-        ser_bus.set_is_roundtrip(bus->is_roundtrip);
-
-        ser_buses[id] = std::move(ser_bus);
-    }
-
-    // serialize distances between stops
-    auto& ser_distance = *ser_catalogue.mutable_stop_stop_distance();
-    const std::unordered_map<std::string_view, std::unordered_map<std::string_view, DistanceType>>&
-        distances = catalogue.GetAllDistances();
-    for (const auto& [from_sv, destination] : distances) {
-        route::serialize::DestinationDistance ser_destination_distance;
-        for (const auto& [to_sv, distance] : destination) {
-            uint32_t to_id = stop_name_to_id[to_sv];
-
-            (*ser_destination_distance.mutable_distance())[to_id] = distance;
-        }
-        uint32_t from_id = stop_name_to_id[from_sv];
-        ser_distance[from_id] = std::move(ser_destination_distance);
-    }
-
-    // serialize settings
-
-    route::serialize::RoutingSettings ser_routing_settings = detail::GetSerializedRoutingSettings(routing_settings);
-    route::serialize::RenderSettings ser_map_settings = detail::GetSerializedMapSettings(map_settings);
-
-    route::serialize::Settings settings;
-    *settings.mutable_routing() = std::move(ser_routing_settings);
-    *settings.mutable_rendering() = std::move(ser_map_settings);
-
-    *ser_catalogue.mutable_settings() = std::move(settings);
-
-    // finish
-    ser_catalogue.SerializeToOstream(&output);
+    proto_catalogue.SerializeToOstream(&output);
 }
 
 void DeserializeTCatalogue(TransportCatalogue& catalogue, RoutingSettings& routing_settings,
-                           renderer::MapSettings& map_settings, const SerializationSettings& serialization_settings) {
-    std::ifstream input(serialization_settings.db_path, std::ios::binary);
-    route::serialize::TransportCatalogue deserialized_data;
-    deserialized_data.ParseFromIstream(&input);
-
+                           renderer::MapSettings& map_settings, const route::serialize::TransportCatalogue& deserialized_data) {
     // 1. fill in transport catalogue from deserialized data
 
     // 1.1. add stops at first
     const auto& id_to_stop_name = deserialized_data.id_to_stop_name();
-    for (const auto& [stop_name_id, stop] : deserialized_data.stops()) {
-        geo::Coordinates coords{stop.latitude(), stop.longitude()};
+    for (const auto& proto_stop : deserialized_data.stops()) {
+        geo::Coordinates coords{proto_stop.coordinates().latitude(), proto_stop.coordinates().longitude()};
 
-        catalogue.AddStop(id_to_stop_name.at(stop_name_id), coords);
+        catalogue.AddStop(id_to_stop_name.at(proto_stop.stop_name_id()), coords);
     }
 
     // 1.2. then add distances between stops
     std::vector<Distance> distances;
-    const auto& stop_stop_distance = deserialized_data.stop_stop_distance();
-    for (const auto& [from_id, destination_distance] : stop_stop_distance) {
-        for (const auto& [to_id, distance] : destination_distance.distance()) {
-            std::string_view from = id_to_stop_name.at(from_id);
-            std::string_view to = id_to_stop_name.at(to_id);
-            Distance d{from, to, static_cast<DistanceType>(distance)};
-            distances.push_back(std::move(d));
-        }
+    for (const auto& proto_dist : deserialized_data.stop_stop_distances()) {
+        std::string_view from = id_to_stop_name.at(proto_dist.from_id());
+        std::string_view to = id_to_stop_name.at(proto_dist.to_id());
+        Distance d{from, to, static_cast<DistanceType>(proto_dist.distance())};
+
+        distances.push_back(std::move(d));
     }
     catalogue.SetDistances(std::move(distances));
 
     // 1.3. and only after that add buses
     const auto& id_to_bus_name = deserialized_data.id_to_bus_name();
-    for (const auto& [bus_name_id, bus] : deserialized_data.buses()) {
+    for (const auto& proto_bus : deserialized_data.buses()) {
         std::vector<std::string> stops;
-        for (const uint32_t& stop_id : bus.stops()) {
+        for (const uint32_t& stop_id : proto_bus.stops()) {
             stops.push_back(std::string(id_to_stop_name.at(stop_id)));
         }
-        catalogue.AddBus(id_to_bus_name.at(bus_name_id), stops, !bus.is_roundtrip());
+        catalogue.AddBus(id_to_bus_name.at(proto_bus.bus_name_id()), stops, !proto_bus.is_roundtrip());
     }
 
     // 2. deserialize settings
 
-    detail::DeserializeMapSettings(map_settings, deserialized_data.settings().rendering());
+    detail::DeserializeMapSettings(map_settings, deserialized_data.render_settings());
 
-    detail::DeserializeRoutingSettings(routing_settings, deserialized_data.settings().routing());
+    detail::DeserializeRoutingSettings(routing_settings, deserialized_data.routing_settings());
 }
 
 }  // namespace io

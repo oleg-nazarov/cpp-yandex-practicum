@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+package route.serialize;
+
+message ColorArray {
+    repeated uint32 rgb = 1;
+    optional double opacity = 2;
+}
+
+message Color {
+    optional string color_string = 1;
+    optional ColorArray color_array = 2;
+}

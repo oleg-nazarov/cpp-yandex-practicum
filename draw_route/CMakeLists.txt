@@ -8,7 +8,7 @@ find_package(Threads REQUIRED)
 find_package(TBB REQUIRED)
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS
-    map_renderer.proto transport_catalogue.proto transport_router.proto)
+    map_renderer.proto svg.proto transport_catalogue.proto transport_router.proto)
 
 set(TRANSPORT_CATALOGUE_FILES
     main.cpp

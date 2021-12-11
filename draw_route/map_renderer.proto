@@ -1,16 +1,8 @@
 syntax = "proto2";
 
+import "svg.proto";
+
 package route.serialize;
-
-message ColorArray {
-    repeated uint32 rgb = 1;
-    optional double opacity = 2;
-}
-
-message Color {
-    optional string color_string = 1;
-    optional ColorArray color_array = 2;
-}
 
 message RenderSettings {
     required double width = 1;

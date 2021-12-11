@@ -1,6 +1,9 @@
 #include "json_reader.h"
 
+#include <transport_catalogue.pb.h>
+
 #include <filesystem>
+#include <fstream>
 #include <iterator>
 #include <optional>
 #include <queue>
@@ -493,6 +496,14 @@ class SetRoutingSettingsHandler : public JSONHandler {
     inline static const std::string BUS_VELOCITY_KEY = "bus_velocity";
 };
 
+route::serialize::TransportCatalogue GetDeserializedData(const SerializationSettings& serialization_settings) {
+    std::ifstream input(serialization_settings.db_path, std::ios::binary);
+    route::serialize::TransportCatalogue deserialized_data;
+    deserialized_data.ParseFromIstream(&input);
+
+    return deserialized_data;
+}
+
 }  // namespace detail
 
 void ReadJSON(std::istream& input, std::ostream& output, TransportCatalogue& catalogue) {
@@ -569,7 +580,7 @@ void ReadProcessRequestsJSON(std::istream& input, std::ostream& output) {
     TransportCatalogue catalogue;
     RoutingSettings routing_settings;
     renderer::MapSettings map_settings;
-    DeserializeTCatalogue(catalogue, routing_settings, map_settings, serialization_settings);
+    DeserializeTCatalogue(catalogue, routing_settings, map_settings, detail::GetDeserializedData(serialization_settings));
 
     TransportRouter transport_router{catalogue, std::move(routing_settings)};
     route::renderer::MapRenderer map_renderer(std::move(map_settings));

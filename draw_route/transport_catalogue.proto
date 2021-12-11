@@ -5,33 +5,39 @@ import "transport_router.proto";
 
 package route.serialize;
 
-message Stop {
+message Coordinate {
     required double latitude = 1;
     required double longitude = 2;
+}
+
+message Stop {
+    required uint32 stop_name_id = 1;
+    required Coordinate coordinates = 2;
     repeated uint32 buses = 3;
 }
 
 message Bus {
-    repeated uint32 stops = 1;
-    required bool is_roundtrip = 2;
+    required uint32 bus_name_id = 1;
+    repeated uint32 stops = 2;
+    required bool is_roundtrip = 3;
 }
 
-message DestinationDistance {
-    map<uint32, uint64> distance = 1;
-}
-
-message Settings {
-    required RoutingSettings routing = 1;
-    required RenderSettings rendering = 2;
+message StopToStopDistance {
+    required uint32 from_id = 1;
+    required uint32 to_id = 2;
+    required uint64 distance = 3;
 }
 
 message TransportCatalogue {
+    // we do not store string duplicates (stop and bus names) for taking less memory,
+    // so create uint32-ids for representing the names
     map<uint32, string> id_to_stop_name = 1;
     map<uint32, string> id_to_bus_name = 2;
 
-    map<uint32, Stop> stops = 3;
-    map<uint32, Bus> buses = 4;
-    map<uint32, DestinationDistance> stop_stop_distance = 5;
+    repeated Stop stops = 3;
+    repeated Bus buses = 4;
+    repeated StopToStopDistance stop_stop_distances = 5;
 
-    required Settings settings = 6;
+    required RoutingSettings routing_settings = 6;
+    required RenderSettings render_settings = 7;
 }
