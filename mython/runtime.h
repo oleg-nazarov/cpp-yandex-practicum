@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -202,6 +203,25 @@ bool Greater(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context)
 bool LessOrEqual(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context);
 // Возвращает значение, противоположное Less(lhs, rhs, context)
 bool GreaterOrEqual(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context);
+
+template <typename P>
+std::optional<bool> CompareStringNumberBool(const ObjectHolder& lhs, const ObjectHolder& rhs, P pred) {
+    if (auto lhs_p = lhs.TryAs<String>(); lhs_p != nullptr) {
+        if (auto rhs_p = rhs.TryAs<String>(); rhs_p != nullptr) {
+            return pred(lhs_p->GetValue(), rhs_p->GetValue());
+        }
+    } else if (auto lhs_p = lhs.TryAs<Number>(); lhs_p != nullptr) {
+        if (auto rhs_p = rhs.TryAs<Number>(); rhs_p != nullptr) {
+            return pred(lhs_p->GetValue(), rhs_p->GetValue());
+        }
+    } else if (auto lhs_p = lhs.TryAs<Bool>(); lhs_p != nullptr) {
+        if (auto rhs_p = rhs.TryAs<Bool>(); rhs_p != nullptr) {
+            return pred(lhs_p->GetValue(), rhs_p->GetValue());
+        }
+    }
+
+    return std::nullopt;
+}
 
 // Контекст-заглушка, применяется в тестах.
 // В этом контексте весь вывод перенаправляется в строковый поток вывода output

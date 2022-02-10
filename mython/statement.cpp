@@ -87,25 +87,27 @@ unique_ptr<Print> Print::Variable(const std::string& name) {
 }
 
 ObjectHolder Print::Execute(Closure& closure, Context& context) {
+    ostream& os = context.GetOutputStream();
+
     for (size_t i = 0; i < args_.size(); ++i) {
         const unique_ptr<Statement>& arg = args_[i];
         ObjectHolder result = arg->Execute(closure, context);
 
         if (result) {
-            result->Print(context.GetOutputStream(), context);
+            result->Print(os, context);
         } else {
             // "None"
-            runtime::String(NONE_S).Print(context.GetOutputStream(), context);
+            runtime::String(NONE_S).Print(os, context);
         }
 
         // print " "
         if (i + 1 != args_.size()) {
-            runtime::String(" "s).Print(context.GetOutputStream(), context);
+            runtime::String(" "s).Print(os, context);
         }
     }
 
     // print "\n"
-    runtime::String("\n"s).Print(context.GetOutputStream(), context);
+    runtime::String("\n"s).Print(os, context);
 
     return {};
 }

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <optional>
@@ -10,6 +11,12 @@
 using namespace std;
 
 namespace runtime {
+
+namespace {
+const string __STR__S = "__str__";
+const string __EQ__S = "__eq__";
+const string __LT__S = "__lt__";
+}  // namespace
 
 ObjectHolder ObjectHolder::Share(Object& object) {
     // Возвращаем невладеющий shared_ptr (его deleter ничего не делает)
@@ -55,7 +62,7 @@ bool IsTrue(const ObjectHolder& object) {
     if (const String* p = object.TryAs<String>(); p != nullptr) {
         return !p->GetValue().empty();
     } else if (const Number* p = object.TryAs<Number>(); p != nullptr) {
-        return p->GetValue();
+        return p->GetValue() != 0;
     } else if (const Bool* p = object.TryAs<Bool>(); p != nullptr) {
         return p->GetValue();
     }
@@ -93,16 +100,12 @@ const Method* Class::GetMethod(const string& name) const {
 }
 
 void Class::Print(ostream& os, [[maybe_unused]] Context& context) {
-    static const string CLASS_S = "Class";
-
-    os << CLASS_S << ' ' << GetName();
+    os << "Class" << ' ' << GetName();
 }
 
 ClassInstance::ClassInstance(const Class& cls) : cls_(cls) {}
 
 void ClassInstance::Print(ostream& os, Context& context) {
-    static const string __STR__S = "__str__";
-
     if (!HasMethod(__STR__S, 0)) {
         os << this;
         return;
@@ -151,8 +154,6 @@ const Closure& ClassInstance::Fields() const {
 }
 
 bool Equal(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context) {
-    static const string __EQ__S = "__eq__";
-
     // ClassInstance
     if (auto lhs_p = lhs.TryAs<ClassInstance>(); lhs_p != nullptr) {
         if (lhs_p->HasMethod(__EQ__S, 1)) {
@@ -167,26 +168,14 @@ bool Equal(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context) {
     }
 
     // String, Number, Bool
-    if (auto lhs_p = lhs.TryAs<String>(); lhs_p != nullptr) {
-        if (auto rhs_p = rhs.TryAs<String>(); rhs_p != nullptr) {
-            return lhs_p->GetValue() == rhs_p->GetValue();
-        }
-    } else if (auto lhs_p = lhs.TryAs<Number>(); lhs_p != nullptr) {
-        if (auto rhs_p = rhs.TryAs<Number>(); rhs_p != nullptr) {
-            return lhs_p->GetValue() == rhs_p->GetValue();
-        }
-    } else if (auto lhs_p = lhs.TryAs<Bool>(); lhs_p != nullptr) {
-        if (auto rhs_p = rhs.TryAs<Bool>(); rhs_p != nullptr) {
-            return lhs_p->GetValue() == rhs_p->GetValue();
-        }
+    if (optional<bool> res = CompareStringNumberBool(lhs, rhs, equal_to<>{}); res.has_value()) {
+        return res.value();
     }
 
     throw runtime_error("Cannot compare objects for equality"s);
 }
 
 bool Less(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context) {
-    static const string __LT__S = "__lt__";
-
     // ClassInstance
     if (auto lhs_p = lhs.TryAs<ClassInstance>(); lhs_p != nullptr) {
         if (lhs_p->HasMethod(__LT__S, 1)) {
@@ -196,18 +185,8 @@ bool Less(const ObjectHolder& lhs, const ObjectHolder& rhs, Context& context) {
     }
 
     // String, Number, Bool
-    if (auto lhs_p = lhs.TryAs<String>(); lhs_p != nullptr) {
-        if (auto rhs_p = rhs.TryAs<String>(); rhs_p != nullptr) {
-            return lhs_p->GetValue() < rhs_p->GetValue();
-        }
-    } else if (auto lhs_p = lhs.TryAs<Number>(); lhs_p != nullptr) {
-        if (auto rhs_p = rhs.TryAs<Number>(); rhs_p != nullptr) {
-            return lhs_p->GetValue() < rhs_p->GetValue();
-        }
-    } else if (auto lhs_p = lhs.TryAs<Bool>(); lhs_p != nullptr) {
-        if (auto rhs_p = rhs.TryAs<Bool>(); rhs_p != nullptr) {
-            return lhs_p->GetValue() < rhs_p->GetValue();
-        }
+    if (optional<bool> res = CompareStringNumberBool(lhs, rhs, less<>{}); res.has_value()) {
+        return res.value();
     }
 
     throw runtime_error("Cannot compare objects for less"s);
