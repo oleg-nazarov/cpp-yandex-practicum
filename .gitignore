@@ -1,1 +1,5 @@
 .vscode
+/spreadsheet/antlr4_runtime
+/spreadsheet/build
+/spreadsheet/dist
+/spreadsheet/antlr-*-complete.jar
