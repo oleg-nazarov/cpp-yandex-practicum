@@ -40,12 +40,7 @@ void Sheet::SetCell(Position pos, std::string text) {
 
     // empty cells are not involved into printing
     if (!text.empty()) {
-        if (pos.row + 1 >= size_.rows) {
-            size_.rows = pos.row + 1;
-        }
-        if (pos.col + 1 >= size_.cols) {
-            size_.cols = pos.col + 1;
-        }
+        SetSize(pos);
     }
 }
 
@@ -79,7 +74,7 @@ void Sheet::ClearCell(Position pos) {
     cells_[pos.row][pos.col]->Set(""s);
 
     if (pos.row + 1 == size_.rows || pos.col + 1 == size_.cols) {
-        UpdateSize();
+        RecalculateSize();
     }
 }
 
@@ -128,7 +123,7 @@ void Sheet::ThrowInvalidPosition(const Position& pos) const {
     throw InvalidPositionException{"Invalid position: "s + std::to_string(pos.row) + ", "s + std::to_string(pos.col)};
 }
 
-void Sheet::UpdateSize() {
+void Sheet::RecalculateSize() {
     int max_col = -1;
     int max_row = -1;
 
@@ -143,6 +138,15 @@ void Sheet::UpdateSize() {
 
     size_.rows = max_row + 1;
     size_.cols = max_col + 1;
+}
+
+void Sheet::SetSize(const Position& pos) {
+    if (pos.row + 1 > size_.rows) {
+        size_.rows = pos.row + 1;
+    }
+    if (pos.col + 1 > size_.cols) {
+        size_.cols = pos.col + 1;
+    }
 }
 
 std::unique_ptr<SheetInterface> CreateSheet() {

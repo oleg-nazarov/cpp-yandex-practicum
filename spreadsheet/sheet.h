@@ -41,5 +41,6 @@ class Sheet : public SheetInterface {
 
     void ThrowInvalidPosition(const Position& pos) const;
 
-    void UpdateSize();
+    void RecalculateSize();
+    void SetSize(const Position& pos);
 };
