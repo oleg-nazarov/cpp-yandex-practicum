@@ -1,11 +1,11 @@
 #include <cassert>
 #include <iostream>
 
-#include "../single_linked_list.h"
+#include "../singly_linked_list.h"
 
 using namespace std;
 
-void TestSingleLinkedList() {
+void TestSinglyLinkedList() {
     struct DeletionSpy {
         ~DeletionSpy() {
             if (deletion_counter_ptr) {
@@ -17,11 +17,11 @@ void TestSingleLinkedList() {
 
     // PopFront
     {
-        SingleLinkedList<int> numbers{3, 14, 15, 92, 6};
+        SinglyLinkedList<int> numbers{3, 14, 15, 92, 6};
         numbers.PopFront();
-        assert((numbers == SingleLinkedList<int>{14, 15, 92, 6}));
+        assert((numbers == SinglyLinkedList<int>{14, 15, 92, 6}));
 
-        SingleLinkedList<DeletionSpy> list;
+        SinglyLinkedList<DeletionSpy> list;
         list.PushFront(DeletionSpy{});
         int deletion_counter = 0;
         list.begin()->deletion_counter_ptr = &deletion_counter;
@@ -32,13 +32,13 @@ void TestSingleLinkedList() {
 
     // before_begin and cbefore_begin
     {
-        SingleLinkedList<int> empty_list;
+        SinglyLinkedList<int> empty_list;
         const auto& const_empty_list = empty_list;
         assert(empty_list.before_begin() == empty_list.cbefore_begin());
         assert(++empty_list.before_begin() == empty_list.begin());
         assert(++empty_list.cbefore_begin() == const_empty_list.begin());
 
-        SingleLinkedList<int> numbers{1, 2, 3, 4};
+        SinglyLinkedList<int> numbers{1, 2, 3, 4};
         const auto& const_numbers = numbers;
         assert(numbers.before_begin() == numbers.cbefore_begin());
         assert(++numbers.before_begin() == numbers.begin());
@@ -48,27 +48,27 @@ void TestSingleLinkedList() {
     // InsertAfter
     {  // in empty list
         {
-            SingleLinkedList<int> lst;
+            SinglyLinkedList<int> lst;
             const auto inserted_item_pos = lst.InsertAfter(lst.before_begin(), 123);
-            assert((lst == SingleLinkedList<int>{123}));
+            assert((lst == SinglyLinkedList<int>{123}));
             assert(inserted_item_pos == lst.begin());
             assert(*inserted_item_pos == 123);
         }
 
         // in non empty list
         {
-            SingleLinkedList<int> lst{1, 2, 3};
+            SinglyLinkedList<int> lst{1, 2, 3};
             auto inserted_item_pos = lst.InsertAfter(lst.before_begin(), 123);
 
             assert(inserted_item_pos == lst.begin());
             assert(inserted_item_pos != lst.end());
             assert(*inserted_item_pos == 123);
-            assert((lst == SingleLinkedList<int>{123, 1, 2, 3}));
+            assert((lst == SinglyLinkedList<int>{123, 1, 2, 3}));
 
             inserted_item_pos = lst.InsertAfter(lst.begin(), 555);
-            assert(++SingleLinkedList<int>::Iterator(lst.begin()) == inserted_item_pos);
+            assert(++SinglyLinkedList<int>::Iterator(lst.begin()) == inserted_item_pos);
             assert(*inserted_item_pos == 555);
-            assert((lst == SingleLinkedList<int>{123, 555, 1, 2, 3}));
+            assert((lst == SinglyLinkedList<int>{123, 555, 1, 2, 3}));
         };
     }
 
@@ -96,7 +96,7 @@ void TestSingleLinkedList() {
     {
         bool exception_was_thrown = false;
         for (int max_copy_counter = 10; max_copy_counter >= 0; --max_copy_counter) {
-            SingleLinkedList<ThrowOnCopy> list{ThrowOnCopy{}, ThrowOnCopy{}, ThrowOnCopy{}};
+            SinglyLinkedList<ThrowOnCopy> list{ThrowOnCopy{}, ThrowOnCopy{}, ThrowOnCopy{}};
             try {
                 int copy_counter = max_copy_counter;
                 list.InsertAfter(list.cbegin(), ThrowOnCopy(copy_counter));
@@ -113,26 +113,26 @@ void TestSingleLinkedList() {
     // EraseAfter
     {
         {
-            SingleLinkedList<int> lst{1, 2, 3, 4};
+            SinglyLinkedList<int> lst{1, 2, 3, 4};
             const auto& const_lst = lst;
             const auto item_after_erased = lst.EraseAfter(const_lst.cbefore_begin());
-            assert((lst == SingleLinkedList<int>{2, 3, 4}));
+            assert((lst == SinglyLinkedList<int>{2, 3, 4}));
             assert(item_after_erased == lst.begin());
         }
         {
-            SingleLinkedList<int> lst{1, 2, 3, 4};
+            SinglyLinkedList<int> lst{1, 2, 3, 4};
             const auto item_after_erased = lst.EraseAfter(lst.cbegin());
-            assert((lst == SingleLinkedList<int>{1, 3, 4}));
+            assert((lst == SinglyLinkedList<int>{1, 3, 4}));
             assert(item_after_erased == (++lst.begin()));
         }
         {
-            SingleLinkedList<int> lst{1, 2, 3, 4};
+            SinglyLinkedList<int> lst{1, 2, 3, 4};
             const auto item_after_erased = lst.EraseAfter(++(++lst.cbegin()));
-            assert((lst == SingleLinkedList<int>{1, 2, 3}));
+            assert((lst == SinglyLinkedList<int>{1, 2, 3}));
             assert(item_after_erased == lst.end());
         }
         {
-            SingleLinkedList<DeletionSpy> list{DeletionSpy{}, DeletionSpy{}, DeletionSpy{}};
+            SinglyLinkedList<DeletionSpy> list{DeletionSpy{}, DeletionSpy{}, DeletionSpy{}};
             auto after_begin = ++list.begin();
             int deletion_counter = 0;
             after_begin->deletion_counter_ptr = &deletion_counter;
@@ -146,7 +146,7 @@ void TestSingleLinkedList() {
 int main() {
     cout << "Start..."s << endl;
 
-    TestSingleLinkedList();
+    TestSinglyLinkedList();
 
     cout << "Done!"s << endl;
 

@@ -7,7 +7,7 @@
 #include <utility>
 
 template <typename Type>
-class SingleLinkedList {
+class SinglyLinkedList {
     struct Node {
         Node() = default;
         Node(const Type& val, Node* next) : value(val), next_node(next) {}
@@ -77,7 +77,7 @@ class SingleLinkedList {
         }
 
        private:
-        friend class SingleLinkedList;
+        friend class SinglyLinkedList;
         Node* iter_ = nullptr;
         explicit BasicIterator(Node* head) {
             iter_ = head;
@@ -88,59 +88,59 @@ class SingleLinkedList {
     using Iterator = BasicIterator<Type>;
     using ConstIterator = BasicIterator<const Type>;
 
-    SingleLinkedList() : size_(0u) {}
-    SingleLinkedList(std::initializer_list<Type> other) {
-        SingleLinkedList temp;
+    SinglyLinkedList() : size_(0u) {}
+    SinglyLinkedList(std::initializer_list<Type> other) {
+        SinglyLinkedList temp;
         fill_temp_list(temp, other.begin(), other.end());
 
         this->swap(temp);
     }
 
-    explicit SingleLinkedList(const SingleLinkedList& other) {
-        SingleLinkedList temp;
+    explicit SinglyLinkedList(const SinglyLinkedList& other) {
+        SinglyLinkedList temp;
         fill_temp_list(temp, other.begin(), other.end());
 
         this->swap(temp);
     }
 
-    ~SingleLinkedList() {
+    ~SinglyLinkedList() {
         Clear();
     }
 
-    SingleLinkedList& operator=(const SingleLinkedList& other) {
+    SinglyLinkedList& operator=(const SinglyLinkedList& other) {
         if (this != &other) {
-            SingleLinkedList temp(other);
+            SinglyLinkedList temp(other);
             this->swap(temp);
         }
 
         return *this;
     }
 
-    bool operator==(const SingleLinkedList& rhs) const noexcept {
+    bool operator==(const SinglyLinkedList& rhs) const noexcept {
         return std::equal(this->begin(), this->end(), rhs.begin());
     }
 
-    bool operator!=(const SingleLinkedList& rhs) const noexcept {
+    bool operator!=(const SinglyLinkedList& rhs) const noexcept {
         return !(*this == rhs);
     }
 
-    bool operator<(const SingleLinkedList& rhs) const noexcept {
+    bool operator<(const SinglyLinkedList& rhs) const noexcept {
         return std::lexicographical_compare(this->begin(), this->end(), rhs.begin(), rhs.end());
     }
 
-    bool operator>(const SingleLinkedList& rhs) const noexcept {
+    bool operator>(const SinglyLinkedList& rhs) const noexcept {
         return rhs < *this;
     }
 
-    bool operator<=(const SingleLinkedList& rhs) const noexcept {
+    bool operator<=(const SinglyLinkedList& rhs) const noexcept {
         return *this < rhs || *this == rhs;
     }
 
-    bool operator>=(const SingleLinkedList& rhs) const noexcept {
+    bool operator>=(const SinglyLinkedList& rhs) const noexcept {
         return *this > rhs || *this == rhs;
     }
 
-    void swap(SingleLinkedList& rhs) noexcept {
+    void swap(SinglyLinkedList& rhs) noexcept {
         std::swap(this->head_.next_node, rhs.head_.next_node);
         std::swap(this->size_, rhs.size_);
     }
@@ -256,7 +256,7 @@ class SingleLinkedList {
     size_t size_;
 
     template <typename Iterator>
-    void fill_temp_list(SingleLinkedList& temp_list, Iterator other_begin, Iterator other_end) {
+    void fill_temp_list(SinglyLinkedList& temp_list, Iterator other_begin, Iterator other_end) {
         Node* last_filled_node = &temp_list.head_;
 
         for (Iterator it = other_begin; it != other_end; ++it) {
@@ -269,6 +269,6 @@ class SingleLinkedList {
 };
 
 template <typename Type>
-void swap(SingleLinkedList<Type>& lhs, SingleLinkedList<Type>& rhs) noexcept {
+void swap(SinglyLinkedList<Type>& lhs, SinglyLinkedList<Type>& rhs) noexcept {
     lhs.swap(rhs);
 }
