@@ -4,9 +4,9 @@
 
 Allows storing data in tabular form. Each cell may contain text or numeric data, or the result of formula calculation (formula can refer to another cell). There is also possible to check the formula for the correctness and find a circular dependency.
 
-## [TransportCatalogue](draw_route/)
+## [TransportCatalogue](transport_catalogue/)
 
-Works with JSON requests. A route drawing request produces a one-line string answer of SVG format. Has been developed JSON constructor with multiple method calls and a possibility to check for errors during compilation time.
+Works with JSON requests. A route drawing request produces a one-line string answer of SVG format. Also, JSON constructor has been developed with method chaining and a possibility to check for errors during compilation time.
 
 ## [SearchEngine](search_engine/)
 

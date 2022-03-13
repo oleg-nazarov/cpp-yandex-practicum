@@ -1,5 +1,9 @@
 .vscode
+
 /spreadsheet/antlr4_runtime
 /spreadsheet/build
 /spreadsheet/dist
 /spreadsheet/antlr-*-complete.jar
+
+/transport_catalogue/build_transport_catalogue
+/transport_catalogue/protobuf_package
