@@ -2,6 +2,8 @@
 
 Works with JSON requests. A route drawing request produces a one-line string answer of SVG format. Also, JSON constructor has been developed with method chaining and a possibility to check for errors during compilation time.
 
+<img src="https://github.com/oleg-nazarov/cpp-yandex-practicum/blob/main/transport_catalogue/route.svg" width=600 height=500 />
+
 ## Consists of
 - `json.h` - library for working with JSON
 - `json_builder.h` - allows you to create JSON more conveniently:
