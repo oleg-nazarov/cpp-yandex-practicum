@@ -4,8 +4,8 @@ Singly-linked list. It uses the written custom Forward Iterator, provides strong
 
 ## Consists of
 
-- custom Forward Iterator `class BasicIterator`
-- singly-linked list with strong exception safety `class SinglyLinkedList`
+- custom Forward Iterator (`class BasicIterator`)
+- singly-linked list with strong exception safety (`class SinglyLinkedList`)
 
 ## How to run tests
 
