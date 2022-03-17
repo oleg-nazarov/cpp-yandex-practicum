@@ -14,10 +14,10 @@ stack: C++17, Protobuf, CMake, custom JSON and SVG libraries
 
 This search engine application is able to find a certain document across all added documents. It is possible to use minus words to exclude some documents from the result. The order of the result is based on the TF-IDF priority rank system.  
 
-## [Vector](data_structures/vector/)
+## [Vector](vector/)
 
 A container that is similar to `std::vector`. Provides strong exception safety, uses RAII, and placement new operator. This container is efficient and its number of called constructors, assignments, and destructors are the same as of `std::vector` (see _Benchmark_ test)  
 
-## [SinglyLinkedList](data_structures/singly_linked_list/)
+## [SinglyLinkedList](singly_linked_list/)
 
 Singly-linked list. It uses the written custom Forward Iterator, provides strong exception safety, and has unit tests.  

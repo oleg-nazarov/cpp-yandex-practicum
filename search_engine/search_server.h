@@ -11,7 +11,7 @@
 #include <tuple>
 #include <vector>
 
-#include "../data_structures/concurrent_map/concurrent_map.h"
+#include "../helpers/concurrent_map/concurrent_map.h"
 #include "../helpers/log_duration.h"
 #include "document.h"
 #include "string_processing.h"

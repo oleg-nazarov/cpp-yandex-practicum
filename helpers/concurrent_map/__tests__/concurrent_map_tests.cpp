@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-#include "../../../helpers/log_duration.h"
-#include "../../../helpers/run_test.h"
+#include "../../log_duration.h"
+#include "../../run_test.h"
 #include "../concurrent_map.h"
 
 using namespace std;
